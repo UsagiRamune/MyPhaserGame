@@ -1,0 +1,35 @@
+<div id="game"></div>
+<script src="https://cdn.jsdelivr.net/npm/phaser@3/dist/phaser.js"></script>
+<script>
+const config = {
+type: Phaser.AUTO, // auto-select WebGL/Canvas
+parent: 'game', // mount point in the DOM
+width: 480,
+height: 800, // portrait 480×800
+backgroundColor: '#f3fcc0',
+scene: { preload, create, update },// scene lifecycle functions
+scale: {
+mode: Phaser.Scale.FIT, // fit to screen
+autoCenter: Phaser.Scale.CENTER_BOTH
+}
+// physics: { default: 'arcade', arcade: { gravity: { y: 0 }, debug: false } }
+};
+function preload() {
+    function preload() {
+    // Option A: direct path
+    this.load.image('logo', 'assets/logo.png');
+    // Option B: base path helper
+    // this.load.setPath('assets/'); this.load.image('logo', 'logo.png');
+}
+}
+function create() {
+    function create() {
+    const img = this.add.image(240, 400, 'logo').setDisplaySize(160, 160);
+    // Interactivity requires setInteractive()
+    img.setInteractive();
+    img.on('pointerdown', () => console.log('clicked'));
+}
+}
+function update() {}
+new Phaser.Game(config);
+</script>

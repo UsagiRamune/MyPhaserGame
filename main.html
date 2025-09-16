@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Playable Ad Mockup V2</title>
+    <style>
+        body { display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; background-color: #333; }
+        canvas { border: 2px solid #fff; background-color: #000; }
+    </style>
+</head>
+<body>
+    <canvas id="gameCanvas" width="360" height="640"></canvas>
+
+    <script>
+        const canvas = document.getElementById("gameCanvas");
+        const ctx = canvas.getContext("2d");
+
+        //--- Scene Manager ---
+        const scenes = {};
+        let currentScene = null;
+
+        function switchScene(sceneName) {
+            console.log(`Switching to scene: ${sceneName}`);
+            // ถ้ามี interval จากซีนเก่า ให้เคลียร์ทิ้งก่อน
+            if (currentScene && currentScene.countdown) {
+                clearInterval(currentScene.countdown);
+                currentScene.countdown = null;
+            }
+            currentScene = scenes[sceneName];
+            if (currentScene.preload) currentScene.preload();
+            if (currentScene.create) currentScene.create();
+        }
+
+        //--- นิยาม Scene แต่ละฉาก ---
+
+        // 1. หน้าจอเริ่มต้น (Start Screen) - **แก้ไขตามคำขอ**
+        scenes.StartScreen = {
+            btn: { text: "START", w: 200, h: 60, color: "#2e7d32" },
+            
+            create: function() {
+                console.log("StartScreen: Creating scene...");
+                this.btn.x = (canvas.width - this.btn.w) / 2;
+                this.btn.y = (canvas.height / 2) + 50;
+            },
+
+            update: function() {
+                // **หน้านี้จะถูกวาดแค่ครั้งเดียวแล้ว freeze ไว้**
+                // **เพราะเราจะเรียก draw() จากใน gameLoop แค่รอบเดียว**
+                // ทำให้ไม่ต้องวาดซ้ำๆ ประหยัดพลังงาน
+            },
+
+            draw: function() { // สร้างฟังก์ชัน draw แยกออกมา
+                // พื้นหลัง
+                ctx.fillStyle = "#333";
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                
+                // Title
+                ctx.fillStyle = "#fff";
+                ctx.font = "bold 48px Arial";
+                ctx.textAlign = "center";
+                ctx.textBaseline = "middle";
+                ctx.fillText("AWESOME GAME", canvas.width / 2, canvas.height / 2 - 50);
+
+                // **ข้อความ Start ตามคำขอ**
+                ctx.font = "20px Arial";
+                ctx.fillText("Click START to Play", canvas.width / 2, canvas.height / 2);
+                
+                // Button
+                ctx.fillStyle = this.btn.color;
+                ctx.fillRect(this.btn.x, this.btn.y, this.btn.w, this.btn.h);
+                ctx.fillStyle = "#fff";
+                ctx.font = "24px Arial";
+                ctx.fillText(this.btn.text, this.btn.x + this.btn.w / 2, this.btn.y + this.btn.h / 2);
+            },
+
+            handleClick: function(x, y) {
+                if (x >= this.btn.x && x <= this.btn.x + this.btn.w &&
+                    y >= this.btn.y && y <= this.btn.y + this.btn.h) {
+                    console.log("Start button clicked!");
+                    switchScene('GameplayScreen');
+                }
+            }
+        };
+
+        // 2. หน้าจอเล่นเกม (Gameplay Screen) - **แก้ไขตามคำขอ**
+        scenes.GameplayScreen = {
+            gameTimer: 30, // **ปรับเวลาเป็น 30 วินาที**
+            countdown: null,
+
+            create: function() {
+                console.log("GameplayScreen: Creating scene...");
+                this.gameTimer = 30; // รีเซ็ตเวลา
+                // ตั้งเวลานับถอยหลัง
+                this.countdown = setInterval(() => {
+                    this.gameTimer--;
+                    if (this.gameTimer < 0) { // ใช้ < 0 เพื่อให้แสดงเลข 0 ก่อนเปลี่ยนฉาก
+                        this.gameTimer = 0;
+                        clearInterval(this.countdown);
+                        switchScene('CTAScreen');
+                    }
+                }, 1000);
+            },
+            
+            update: function() {
+                // วาดหน้าจอ Gameplay ใหม่ทุกเฟรม
+                // พื้นหลัง
+                ctx.fillStyle = "#1e88e5";
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                
+                // ข้อความ
+                ctx.fillStyle = "#fff";
+                ctx.font = "32px Arial";
+                ctx.textAlign = "center";
+                ctx.fillText("เล่นเกมตรงนี้!", canvas.width / 2, canvas.height / 2);
+                
+                // **Countdown text ขวาบน ตามคำขอ**
+                ctx.font = "bold 36px Arial";
+                ctx.textAlign = "right"; // ชิดขวา
+                ctx.textBaseline = "top"; // ยึดด้านบน
+                ctx.fillText(this.gameTimer, canvas.width - 20, 20); // วาดที่ตำแหน่งขวาบน
+            },
+            
+            handleClick: function(x, y) {
+                console.log(`Player clicked at (${x}, ${y})`);
+            }
+        };
+
+        // 3. หน้าจอ Call to Action (CTA Screen)
+        scenes.CTAScreen = {
+            btn: { text: "Download Now!", w: 250, h: 70, color: "#d32f2f" },
+            
+            create: function() {
+                console.log("CTAScreen: Creating scene...");
+                this.btn.x = (canvas.width - this.btn.w) / 2;
+                this.btn.y = canvas.height - 150;
+            },
+            
+            update: function() {
+                // หน้านี้ก็ freeze เหมือนกัน
+            },
+
+            draw: function() { // สร้างฟังก์ชัน draw แยก
+                ctx.fillStyle = "#333";
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                ctx.fillStyle = "#ffc107";
+                ctx.font = "bold 48px Arial";
+                ctx.textAlign = "center";
+                ctx.fillText("You Are Awesome!", canvas.width / 2, canvas.height / 2 - 50);
+                ctx.fillStyle = this.btn.color;
+                ctx.fillRect(this.btn.x, this.btn.y, this.btn.w, this.btn.h);
+                ctx.fillStyle = "#fff";
+                ctx.font = "bold 28px Arial";
+                ctx.textBaseline = "middle";
+                ctx.fillText(this.btn.text, this.btn.x + this.btn.w / 2, this.btn.y + this.btn.h / 2);
+            },
+            
+            handleClick: function(x, y) {
+                if (x >= this.btn.x && x <= this.btn.x + this.btn.w &&
+                    y >= this.btn.y && y <= this.btn.y + this.btn.h) {
+                    console.log("CTA button clicked! Opening App Store...");
+                }
+            }
+        };
+
+        //--- Game Loop (หัวใจหลัก) ---
+        function gameLoop() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            if (currentScene) {
+                // ถ้าซีนมี update ให้เรียกทุกเฟรม (ฉากเกม)
+                if (currentScene.update) {
+                    currentScene.update();
+                }
+                // ถ้าซีนมี draw ให้เรียกทุกเฟรม (แก้ปัญหาซีนค้างไม่วาด)
+                // สำหรับซีนที่ไม่มี update เราจะวาดมันทุกเฟรมไปเลย
+                // แต่ถ้าซีนไหนมี update แล้ววาดในนั้น ก็ไม่ต้องมี draw() แยก
+                if (currentScene.draw) {
+                    currentScene.draw();
+                }
+            }
+            
+            requestAnimationFrame(gameLoop);
+        }
+
+        //--- Event Listener ---
+        canvas.addEventListener('click', (e) => {
+            const rect = canvas.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+
+            if (currentScene && currentScene.handleClick) {
+                currentScene.handleClick(x, y);
+            }
+        });
+
+        //--- เริ่มเกม! ---
+        switchScene('StartScreen');
+        requestAnimationFrame(gameLoop);
+
+    </script>
+</body>
+</html>
