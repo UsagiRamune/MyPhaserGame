@@ -1,203 +1,239 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Playable Ad Mockup V2</title>
+    <meta charset="utf-8" />
+    <title>Playable Ad - Merge TD (UI Rework)</title>
+    <script src="https://cdn.jsdelivr.net/npm/phaser@3/dist/phaser.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;700&display=swap" rel="stylesheet">
     <style>
-        body { display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; background-color: #333; }
-        canvas { border: 2px solid #fff; background-color: #000; }
+        body { margin:0; background:#000; font-family: 'Poppins', Arial, sans-serif; }
+        #game { margin:0 auto; display:block; }
     </style>
 </head>
 <body>
-    <canvas id="gameCanvas" width="360" height="640"></canvas>
+    <div id="game"></div>
 
-    <script>
-        const canvas = document.getElementById("gameCanvas");
-        const ctx = canvas.getContext("2d");
+<script>
+/* =========================
+    CONFIG / CONSTANTS
+   ========================= */
+const WIDTH = 480; const HEIGHT = 800;
+const GRID_COLS = 4; const GRID_ROWS = 5; const CELL_SIZE = 80;
+const GRID_W = GRID_COLS * CELL_SIZE; const GRID_H = GRID_ROWS * CELL_SIZE;
+const GRID_X = (WIDTH - GRID_W) / 2; const GRID_Y = 220;
+const TILE_PADDING = 8;
+const TOWER_TYPES = ['fire','ice','lightning','poison','arrow'];
+const TOWER_CONFIG = {
+    fire:      { color: 0xff6a00, baseDmg: 15, specialChance: 0.2 },
+    ice:       { color: 0x66ccff, baseDmg: 8,  specialChance: 0.25 },
+    lightning: { color: 0xffff66, baseDmg: 10, specialChance: 0.25 },
+    poison:    { color: 0x8fce00, baseDmg: 6,  specialChance: 0.3 },
+    arrow:     { color: 0xffffff, baseDmg: 12, specialChance: 0.0 }
+};
+const ENEMY_BASE_HP = 40; const ENEMY_BASE_SPEED = 120; const ENEMY_SPAWN_DELAY = 800;
+const SUMMON_COOLDOWN = 500; const MANA_REGEN_RATE = 1; const MANA_PER_KILL = 4; const BASE_SUMMON_COST = 10;
 
-        //--- Scene Manager ---
-        const scenes = {};
-        let currentScene = null;
+function randChoice(arr){ return arr[Math.floor(Math.random()*arr.length)]; }
 
-        function switchScene(sceneName) {
-            console.log(`Switching to scene: ${sceneName}`);
-            // ถ้ามี interval จากซีนเก่า ให้เคลียร์ทิ้งก่อน
-            if (currentScene && currentScene.countdown) {
-                clearInterval(currentScene.countdown);
-                currentScene.countdown = null;
-            }
-            currentScene = scenes[sceneName];
-            if (currentScene.preload) currentScene.preload();
-            if (currentScene.create) currentScene.create();
+/* =========================
+    SCENE: GameScene (The Stage)
+   ========================= */
+class GameScene extends Phaser.Scene {
+    constructor(){ super('GameScene'); }
+
+    create(){
+        this.isGameOver = false; this.playerHP = 3; this.lastSummon = 0; this.score = 0;
+        this.mana = 15; this.summonCount = 0;
+        this.add.rectangle(WIDTH/2, HEIGHT/2, WIDTH, HEIGHT, 0x16202a);
+        this.setupGrid(); this.setupPath();
+        this.towers = []; this.enemies = this.add.group(); this.projectiles = this.add.group();
+        this.setupInputHandling();
+        this.physics.pause();
+    }
+    
+    startGame() {
+        this.physics.resume();
+        this.spawnTimer = this.time.addEvent({ delay: ENEMY_SPAWN_DELAY, loop: true, callback: this.spawnEnemy, callbackScope: this });
+        this.towerAttackTimer = this.time.addEvent({ delay: 200, loop: true, callback: this.updateTowerAttacks, callbackScope: this });
+        this.manaRegenTimer = this.time.addEvent({ delay: 1000, loop: true, callback: () => { this.mana += MANA_REGEN_RATE; }});
+    }
+    
+    // <<< แก้แล้ว! >>>
+    freezeGame() {
+        this.isGameOver = true;
+        this.physics.pause();
+        this.tweens.pauseAll(); // หยุดอนิเมชันทั้งหมด
+        if (this.spawnTimer) this.spawnTimer.remove();
+        if (this.towerAttackTimer) this.towerAttackTimer.remove();
+        if (this.manaRegenTimer) this.manaRegenTimer.remove();
+    }
+
+    setupGrid(){
+        const gridBg = this.add.rectangle(WIDTH/2, GRID_Y + GRID_H/2, GRID_W+16, GRID_H+16, 0x0f1720).setStrokeStyle(2, 0x2b3942);
+        this.grid = [];
+        for(let r = 0; r < GRID_ROWS; r++){ this.grid[r] = []; for(let c = 0; c < GRID_COLS; c++){
+                const gx = GRID_X + c * CELL_SIZE; const gy = GRID_Y + r * CELL_SIZE;
+                const cellRect = this.add.rectangle(gx + CELL_SIZE/2, gy + CELL_SIZE/2, CELL_SIZE-TILE_PADDING, CELL_SIZE-TILE_PADDING, 0x0a2533).setStrokeStyle(1, 0x24414e);
+                this.grid[r][c] = { x: gx, y: gy, tower: null, rect: cellRect };
+        }}
+    }
+    setupPath(){
+        const m = 30, l = GRID_X - m, r = GRID_X + GRID_W + m, t = GRID_Y - m, b = GRID_Y + GRID_H + m;
+        this.pathPoints = [{x:l,y:b},{x:l,y:t},{x:r,y:t},{x:r,y:b}];
+        const pathGraphics = this.add.graphics(); pathGraphics.lineStyle(3, 0x555555);
+        for(let i=0;i<this.pathPoints.length-1;i++){ pathGraphics.lineBetween(this.pathPoints[i].x,this.pathPoints[i].y,this.pathPoints[i+1].x,this.pathPoints[i+1].y); }
+        this.segmentLengths = [];
+        for(let i=0;i<this.pathPoints.length-1;i++){ const d = Phaser.Math.Distance.Between(this.pathPoints[i].x,this.pathPoints[i].y,this.pathPoints[i+1].x,this.pathPoints[i+1].y); this.segmentLengths.push(d); }
+    }
+    setupInputHandling(){
+        this.input.on('dragstart', (p, go) => { go.setScale(1.1).setDepth(100); });
+        this.input.on('drag', (p, go, dx, dy) => { go.x = dx; go.y = dy; });
+        this.input.on('dragend', (p, go) => { go.setScale(1.0).setDepth(1); this.tryPlaceTowerFromSprite(go); });
+    }
+    doSummon(){
+        if(this.isGameOver || this.time.now - this.lastSummon < SUMMON_COOLDOWN) return;
+        const cost = this.getCurrentSummonCost(); if(this.mana < cost) return;
+        const empties = []; for(let r=0;r<GRID_ROWS;r++){for(let c=0;c<GRID_COLS;c++){if(!this.grid[r][c].tower) empties.push({r,c});}}
+        if(empties.length === 0) return;
+        this.lastSummon = this.time.now; this.mana -= cost; this.summonCount++;
+        const target = randChoice(empties); this.placeTowerAtCell(target.r, target.c, randChoice(TOWER_TYPES), 1);
+    }
+    getCurrentSummonCost(){
+        if (this.summonCount === 0) return BASE_SUMMON_COST;
+        let totalAddedCost=0; for (let i=1;i<=this.summonCount;i++){totalAddedCost+=Math.pow(2,i);}
+        return BASE_SUMMON_COST + totalAddedCost;
+    }
+    placeTowerAtCell(r, c, type, level){
+        const cell = this.grid[r][c]; if(cell.tower) return;
+        const cx=cell.x+CELL_SIZE/2; const cy=cell.y+CELL_SIZE/2;
+        const sprite = this.add.rectangle(cx,cy,CELL_SIZE-TILE_PADDING-4,CELL_SIZE-TILE_PADDING-4,TOWER_CONFIG[type].color).setStrokeStyle(2,0x000000).setInteractive({draggable:true});
+        const label = this.add.text(cx,cy+(CELL_SIZE/2)-18,`L${level}`,{fontSize:'12px',color:'#000'}).setOrigin(0.5);
+        const tower = {sprite,label,r,c,x:cx,y:cy,type,level,dmg:TOWER_CONFIG[type].baseDmg*Math.pow(1.4,level-1),attackRate:Math.max(300-(level-1)*20,150),lastAttack:0};
+        this.grid[r][c].tower = tower; this.towers.push(tower);
+    }
+    tryPlaceTowerFromSprite(sprite){
+        const draggedTower = this.findTowerBySprite(sprite); if(!draggedTower){sprite.destroy();return;}
+        let targetCell=null,targetR=-1,targetC=-1;
+        for(let r=0;r<GRID_ROWS;r++){for(let c=0;c<GRID_COLS;c++){const cell=this.grid[r][c];const cx=cell.x+CELL_SIZE/2,cy=cell.y+CELL_SIZE/2;if(Math.abs(sprite.x-cx)<CELL_SIZE/2&&Math.abs(sprite.y-cy)<CELL_SIZE/2){targetCell=cell;targetR=r;targetC=c;break;}}if(targetCell)break;}
+        if(!targetCell || !targetCell.tower || targetCell.tower === draggedTower){this.returnTowerToOriginalPosition(draggedTower);}
+        else{const targetTower=targetCell.tower;if(this.canMerge(draggedTower,targetTower)){this.mergeTowers(draggedTower,targetTower,targetR,targetC);}else{this.returnTowerToOriginalPosition(draggedTower);}}
+    }
+    canMerge(t1,t2){ return t1.type===t2.type && t1.level===t2.level; }
+    mergeTowers(t1,t2,tr,tc){
+        this.destroyTower(t1); this.destroyTower(t2);
+        const newLevel=t1.level+1; const newType=Math.random()<0.7?t1.type:randChoice(TOWER_TYPES);
+        this.placeTowerAtCell(tr,tc,newType,newLevel);
+        const cell=this.grid[tr][tc]; const fx=this.add.circle(cell.x+CELL_SIZE/2,cell.y+CELL_SIZE/2,30,0xffffff,0.8);
+        this.tweens.add({targets:fx,scale:2,alpha:0,duration:300,onComplete:()=>fx.destroy()});
+    }
+    returnTowerToOriginalPosition(t){ t.sprite.x=t.x; t.sprite.y=t.y; t.label.x=t.x; t.label.y=t.y+(CELL_SIZE/2)-18; }
+    findTowerBySprite(s){ return this.towers.find(t=>t.sprite===s); }
+    destroyTower(t){if(t.sprite)t.sprite.destroy();if(t.label)t.label.destroy();this.grid[t.r][t.c].tower=null;const i=this.towers.indexOf(t);if(i>=0)this.towers.splice(i,1);}
+    spawnEnemy(){
+        if(this.isGameOver) return;
+        const startPoint=this.pathPoints[0]; const enemy=this.add.rectangle(startPoint.x,startPoint.y,22,26,0xff4466).setOrigin(0.5);
+        enemy.hp=ENEMY_BASE_HP+Math.floor(this.score*1.5); enemy.speed=ENEMY_BASE_SPEED+Math.floor(this.score); enemy.isDead=false;
+        this.enemies.add(enemy); this.moveEnemyAlongPath(enemy);
+    }
+    moveEnemyAlongPath(enemy){ if(!enemy||enemy.isDead)return; enemy.pathSegment=0; this.moveEnemyToNextSegment(enemy); }
+    moveEnemyToNextSegment(enemy){
+        if(!enemy||enemy.isDead||enemy.pathSegment>=this.pathPoints.length-1)return;
+        const nextPoint=this.pathPoints[enemy.pathSegment+1]; const distance=this.segmentLengths[enemy.pathSegment];
+        const duration=(distance/enemy.speed)*1000;
+        this.tweens.add({targets:enemy,x:nextPoint.x,y:nextPoint.y,duration:duration,ease:'Linear',onComplete:()=>{if(!enemy||enemy.isDead)return;enemy.pathSegment++;if(enemy.pathSegment>=this.pathPoints.length-1){this.onEnemyReachBase(enemy);}else{this.moveEnemyToNextSegment(enemy);}}});
+    }
+    onEnemyReachBase(enemy){ if(!enemy||enemy.isDead)return; enemy.isDead=true; enemy.destroy(); this.playerHP--; if(this.playerHP<=0)this.endGame(); }
+    updateTowerAttacks(){
+        if(this.isGameOver)return;const aliveEnemies=this.enemies.getChildren().filter(e=>e&&!e.isDead);if(aliveEnemies.length===0)return;const now=this.time.now;
+        for(let tower of this.towers){if(now-tower.lastAttack<tower.attackRate)continue;let bestTarget=null;for(let enemy of aliveEnemies){if(Phaser.Math.Distance.Between(tower.x,tower.y,enemy.x,enemy.y)<200){bestTarget=enemy;break;}}if(bestTarget){this.towerAttack(tower,bestTarget);tower.lastAttack=now;}}
+    }
+    towerAttack(tower,enemy){
+        const projectile=this.add.circle(tower.x,tower.y,3,0xffffff);this.tweens.add({targets:projectile,x:enemy.x,y:enemy.y,duration:200,onComplete:()=>projectile.destroy()});
+        enemy.hp-=Math.round(tower.dmg*(0.9+Math.random()*0.2)); if(enemy.hp<=0)this.killEnemy(enemy);
+    }
+    killEnemy(enemy){ if(!enemy||enemy.isDead)return; enemy.isDead=true;this.score++;this.mana+=MANA_PER_KILL;this.tweens.add({targets:enemy,alpha:0,scale:0.5,duration:200,onComplete:()=>{if(enemy)enemy.destroy();}}); }
+    update(){}
+    endGame(){ this.scene.get('UIScene').showCta(this.score); }
+}
+
+/* =========================
+    SCENE: UIScene (The Director)
+   ========================= */
+class UIScene extends Phaser.Scene {
+    constructor(){ super({key: 'UIScene', active: true}); }
+    create(){
+        this.gameScene = this.scene.get('GameScene');
+        const fontStyle = { fontFamily: "'Poppins', Arial", fontSize: '24px', color: '#fff', fontStyle: '700' };
+        
+        this.startOverlay = this.add.rectangle(WIDTH/2, HEIGHT/2, WIDTH, HEIGHT, 0x000000, 0.7).setInteractive();
+        this.startText = this.add.text(WIDTH/2, HEIGHT/2, 'TAP TO START', {...fontStyle, fontSize: '42px'}).setOrigin(0.5);
+        this.startOverlay.once('pointerdown', this.startGame, this);
+        
+        this.summonBtnBg = this.add.graphics();
+        this.summonBtn = this.add.zone(WIDTH/2 - 100, HEIGHT - 80, 200, 60).setOrigin(0).setInteractive();
+        this.summonText = this.add.text(WIDTH/2, HEIGHT - 50, `SUMMON`, fontStyle).setOrigin(0.5);
+        this.summonBtn.on('pointerdown', () => this.gameScene.doSummon());
+        
+        this.hpText = this.add.text(20, 20, `HP: 0`, fontStyle).setOrigin(0, 0);
+        this.scoreText = this.add.text(WIDTH - 20, 20, `Score: 0`, fontStyle).setOrigin(1, 0);
+        this.manaText = this.add.text(20, 50, `Mana: 0`, fontStyle).setOrigin(0, 0);
+        this.timerText = this.add.text(WIDTH/2, 20, 'Time: 30', fontStyle).setOrigin(0.5, 0);
+        this.inGameUI = [this.summonBtnBg, this.summonBtn, this.summonText, this.manaText, this.scoreText, this.hpText, this.timerText];
+        this.inGameUI.forEach(ui => ui.setVisible(false));
+
+        this.ctaOverlay = this.add.rectangle(WIDTH/2, HEIGHT/2, WIDTH, HEIGHT, 0x000000, 0.8).setVisible(false);
+        this.ctaScoreText = this.add.text(WIDTH/2, HEIGHT/2 - 50, '', {...fontStyle, fontSize: '32px'}).setOrigin(0.5).setVisible(false);
+        this.ctaText = this.add.text(WIDTH/2, HEIGHT/2 + 50, 'PLAY NOW!', {...fontStyle, fontSize: '64px'}).setOrigin(0.5).setVisible(false);
+        this.ctaUI = [this.ctaOverlay, this.ctaScoreText, this.ctaText];
+    }
+    startGame(){
+        this.startOverlay.setVisible(false); this.startText.setVisible(false);
+        this.inGameUI.forEach(ui => ui.setVisible(true));
+        this.gameScene.startGame();
+        this.timeLeft = 30;
+        this.timerEvent = this.time.addEvent({ delay: 1000, callback: this.updateTimer, callbackScope: this, loop: true });
+    }
+    updateTimer(){
+        this.timeLeft--; if (this.timeLeft < 0) return;
+        this.timerText.setText(`Time: ${this.timeLeft}`);
+        if (this.timeLeft <= 0) { this.timerEvent.remove(); this.gameScene.endGame(); }
+    }
+    showCta(score){
+        this.gameScene.freezeGame();
+        this.inGameUI.forEach(ui => ui.setVisible(false));
+        this.ctaUI.forEach(ui => ui.setVisible(true));
+        this.ctaScoreText.setText(`Final Score: ${score}`);
+        this.ctaOverlay.setInteractive().on('pointerdown', () => console.log("Redirecting..."));
+    }
+    update(){
+        if(this.inGameUI[0].visible) {
+            this.manaText.setText(`Mana: ${this.gameScene.mana}`);
+            this.hpText.setText(`HP: ${this.gameScene.playerHP}`);
+            this.scoreText.setText(`Score: ${this.gameScene.score}`);
+            const cost = this.gameScene.getCurrentSummonCost();
+            this.summonText.setText(`SUMMON (${cost})`);
+            const summonBtnBg = this.inGameUI[0];
+            const color = this.gameScene.mana >= cost ? 0x1f8fff : 0x666666;
+            summonBtnBg.clear().fillStyle(color, 1).fillRoundedRect(WIDTH/2 - 100, HEIGHT - 80, 200, 60, 15);
         }
+    }
+}
 
-        //--- นิยาม Scene แต่ละฉาก ---
-
-        // 1. หน้าจอเริ่มต้น (Start Screen) - **แก้ไขตามคำขอ**
-        scenes.StartScreen = {
-            btn: { text: "START", w: 200, h: 60, color: "#2e7d32" },
-            
-            create: function() {
-                console.log("StartScreen: Creating scene...");
-                this.btn.x = (canvas.width - this.btn.w) / 2;
-                this.btn.y = (canvas.height / 2) + 50;
-            },
-
-            update: function() {
-                // **หน้านี้จะถูกวาดแค่ครั้งเดียวแล้ว freeze ไว้**
-                // **เพราะเราจะเรียก draw() จากใน gameLoop แค่รอบเดียว**
-                // ทำให้ไม่ต้องวาดซ้ำๆ ประหยัดพลังงาน
-            },
-
-            draw: function() { // สร้างฟังก์ชัน draw แยกออกมา
-                // พื้นหลัง
-                ctx.fillStyle = "#333";
-                ctx.fillRect(0, 0, canvas.width, canvas.height);
-                
-                // Title
-                ctx.fillStyle = "#fff";
-                ctx.font = "bold 48px Arial";
-                ctx.textAlign = "center";
-                ctx.textBaseline = "middle";
-                ctx.fillText("AWESOME GAME", canvas.width / 2, canvas.height / 2 - 50);
-
-                // **ข้อความ Start ตามคำขอ**
-                ctx.font = "20px Arial";
-                ctx.fillText("Click START to Play", canvas.width / 2, canvas.height / 2);
-                
-                // Button
-                ctx.fillStyle = this.btn.color;
-                ctx.fillRect(this.btn.x, this.btn.y, this.btn.w, this.btn.h);
-                ctx.fillStyle = "#fff";
-                ctx.font = "24px Arial";
-                ctx.fillText(this.btn.text, this.btn.x + this.btn.w / 2, this.btn.y + this.btn.h / 2);
-            },
-
-            handleClick: function(x, y) {
-                if (x >= this.btn.x && x <= this.btn.x + this.btn.w &&
-                    y >= this.btn.y && y <= this.btn.y + this.btn.h) {
-                    console.log("Start button clicked!");
-                    switchScene('GameplayScreen');
-                }
-            }
-        };
-
-        // 2. หน้าจอเล่นเกม (Gameplay Screen) - **แก้ไขตามคำขอ**
-        scenes.GameplayScreen = {
-            gameTimer: 30, // **ปรับเวลาเป็น 30 วินาที**
-            countdown: null,
-
-            create: function() {
-                console.log("GameplayScreen: Creating scene...");
-                this.gameTimer = 30; // รีเซ็ตเวลา
-                // ตั้งเวลานับถอยหลัง
-                this.countdown = setInterval(() => {
-                    this.gameTimer--;
-                    if (this.gameTimer < 0) { // ใช้ < 0 เพื่อให้แสดงเลข 0 ก่อนเปลี่ยนฉาก
-                        this.gameTimer = 0;
-                        clearInterval(this.countdown);
-                        switchScene('CTAScreen');
-                    }
-                }, 1000);
-            },
-            
-            update: function() {
-                // วาดหน้าจอ Gameplay ใหม่ทุกเฟรม
-                // พื้นหลัง
-                ctx.fillStyle = "#1e88e5";
-                ctx.fillRect(0, 0, canvas.width, canvas.height);
-                
-                // ข้อความ
-                ctx.fillStyle = "#fff";
-                ctx.font = "32px Arial";
-                ctx.textAlign = "center";
-                ctx.fillText("เล่นเกมตรงนี้!", canvas.width / 2, canvas.height / 2);
-                
-                // **Countdown text ขวาบน ตามคำขอ**
-                ctx.font = "bold 36px Arial";
-                ctx.textAlign = "right"; // ชิดขวา
-                ctx.textBaseline = "top"; // ยึดด้านบน
-                ctx.fillText(this.gameTimer, canvas.width - 20, 20); // วาดที่ตำแหน่งขวาบน
-            },
-            
-            handleClick: function(x, y) {
-                console.log(`Player clicked at (${x}, ${y})`);
-            }
-        };
-
-        // 3. หน้าจอ Call to Action (CTA Screen)
-        scenes.CTAScreen = {
-            btn: { text: "Download Now!", w: 250, h: 70, color: "#d32f2f" },
-            
-            create: function() {
-                console.log("CTAScreen: Creating scene...");
-                this.btn.x = (canvas.width - this.btn.w) / 2;
-                this.btn.y = canvas.height - 150;
-            },
-            
-            update: function() {
-                // หน้านี้ก็ freeze เหมือนกัน
-            },
-
-            draw: function() { // สร้างฟังก์ชัน draw แยก
-                ctx.fillStyle = "#333";
-                ctx.fillRect(0, 0, canvas.width, canvas.height);
-                ctx.fillStyle = "#ffc107";
-                ctx.font = "bold 48px Arial";
-                ctx.textAlign = "center";
-                ctx.fillText("You Are Awesome!", canvas.width / 2, canvas.height / 2 - 50);
-                ctx.fillStyle = this.btn.color;
-                ctx.fillRect(this.btn.x, this.btn.y, this.btn.w, this.btn.h);
-                ctx.fillStyle = "#fff";
-                ctx.font = "bold 28px Arial";
-                ctx.textBaseline = "middle";
-                ctx.fillText(this.btn.text, this.btn.x + this.btn.w / 2, this.btn.y + this.btn.h / 2);
-            },
-            
-            handleClick: function(x, y) {
-                if (x >= this.btn.x && x <= this.btn.x + this.btn.w &&
-                    y >= this.btn.y && y <= this.btn.y + this.btn.h) {
-                    console.log("CTA button clicked! Opening App Store...");
-                }
-            }
-        };
-
-        //--- Game Loop (หัวใจหลัก) ---
-        function gameLoop() {
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-            
-            if (currentScene) {
-                // ถ้าซีนมี update ให้เรียกทุกเฟรม (ฉากเกม)
-                if (currentScene.update) {
-                    currentScene.update();
-                }
-                // ถ้าซีนมี draw ให้เรียกทุกเฟรม (แก้ปัญหาซีนค้างไม่วาด)
-                // สำหรับซีนที่ไม่มี update เราจะวาดมันทุกเฟรมไปเลย
-                // แต่ถ้าซีนไหนมี update แล้ววาดในนั้น ก็ไม่ต้องมี draw() แยก
-                if (currentScene.draw) {
-                    currentScene.draw();
-                }
-            }
-            
-            requestAnimationFrame(gameLoop);
-        }
-
-        //--- Event Listener ---
-        canvas.addEventListener('click', (e) => {
-            const rect = canvas.getBoundingClientRect();
-            const x = e.clientX - rect.left;
-            const y = e.clientY - rect.top;
-
-            if (currentScene && currentScene.handleClick) {
-                currentScene.handleClick(x, y);
-            }
-        });
-
-        //--- เริ่มเกม! ---
-        switchScene('StartScreen');
-        requestAnimationFrame(gameLoop);
-
-    </script>
+/* =========================
+    GAME CONFIG
+   ========================= */
+const config = {
+    type: Phaser.AUTO, width: WIDTH, height: HEIGHT, parent: 'game', backgroundColor: '#000011',
+    physics: {
+        default: 'arcade',
+        arcade: { debug: false }
+    },
+    scene: [GameScene, UIScene],
+    scale: { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.CENTER_BOTH }
+};
+const game = new Phaser.Game(config);
+</script>
 </body>
 </html>

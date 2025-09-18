@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Playable Ad - Pong AI (Fixed)</title>
+    <title>Playable Ad Test</title>
     <script src="https://cdn.jsdelivr.net/npm/phaser@3/dist/phaser.js"></script>
     <style>
         body { margin: 0; padding: 0; background-color: #000; }
@@ -13,310 +13,40 @@
 <div id="game"></div>
 
 <script>
-// --- SCENE 1: START SCENE ---
-class StartScene extends Phaser.Scene {
-    constructor() {
-        super('StartScene');
-    }
-
-    preload() {
-        // Create simple colored rectangles for game objects
-        this.add.graphics()
-            .fillStyle(0xffffff)
-            .fillRect(0, 0, 1, 1)
-            .generateTexture('pixel', 1, 1);
-    }
-
-    create() {
-        // Create a simple logo using graphics
-        const logo = this.add.graphics();
-        logo.fillStyle(0x00ff00);
-        logo.fillRoundedRect(-60, -20, 120, 40, 10);
-        logo.x = this.cameras.main.centerX;
-        logo.y = this.cameras.main.centerY - 100;
-
-        this.add.text(this.cameras.main.centerX, this.cameras.main.centerY - 100, 'PONG', 
-            { fontSize: '32px', fill: '#fff', fontStyle: 'bold' }).setOrigin(0.5);
-
-        this.add.text(this.cameras.main.centerX, this.cameras.main.centerY + 100, 'CLICK TO PLAY!', 
-            { fontSize: '48px', fill: '#fff', fontStyle: 'bold' }).setOrigin(0.5);
-
-        this.input.on('pointerdown', () => {
-            this.scene.start('GameScene');
-        });
-    }
-}
-
-// --- SCENE 2: GAMEPLAY SCENE (FIXED!) ---
-class GameScene extends Phaser.Scene {
-    constructor() {
-        super('GameScene');
-        this.player = null;
-        this.ai = null;
-        this.ball = null;
-        this.playerScoreText = null;
-        this.aiScoreText = null;
-        this.playerScore = 0;
-        this.aiScore = 0;
-        this.ballIsDead = false;
-        this.paddleWidth = 120;
-        this.paddleHeight = 20;
-        this.ballSize = 20;
-    }
-
-    preload() {
-        // Create textures for game objects
-        this.add.graphics()
-            .fillStyle(0xffffff)
-            .fillRect(0, 0, 1, 1)
-            .generateTexture('pixel', 1, 1);
-    }
-
-    create() {
-        this.cameras.main.setBackgroundColor('#1a1a2a');
-
-        // Create paddles using rectangles with proper physics bodies
-        this.player = this.physics.add.sprite(this.cameras.main.centerX, this.game.config.height - 50, 'pixel');
-        this.player.setDisplaySize(this.paddleWidth, this.paddleHeight);
-        this.player.setTint(0x42f5ad);
-        this.player.setImmovable(true);
-        this.player.body.setCollideWorldBounds(true);
-        
-        this.ai = this.physics.add.sprite(this.cameras.main.centerX, 50, 'pixel');
-        this.ai.setDisplaySize(this.paddleWidth, this.paddleHeight);
-        this.ai.setTint(0xf54257);
-        this.ai.setImmovable(true);
-        this.ai.body.setCollideWorldBounds(true);
-        
-        // Create ball with proper physics body
-        this.ball = this.physics.add.sprite(this.cameras.main.centerX, this.cameras.main.centerY, 'pixel');
-        this.ball.setDisplaySize(this.ballSize, this.ballSize);
-        this.ball.setTint(0xffffff);
-        this.ball.setCollideWorldBounds(true);
-        this.ball.setBounce(1, 1);
-        
-        // Initialize scores
-        this.playerScore = 0;
-        this.aiScore = 0;
-        this.playerScoreText = this.add.text(this.game.config.width - 10, this.game.config.height - 10, 
-            'Player: 0', { fontSize: '24px', fill: '#42f5ad' }).setOrigin(1, 1);
-        this.aiScoreText = this.add.text(this.game.config.width - 10, 10, 
-            'AI: 0', { fontSize: '24px', fill: '#f54257' }).setOrigin(1, 0);
-
-        // Set up physics world bounds (disable top and bottom collision for scoring)
-        this.physics.world.setBoundsCollision(true, true, false, false);
-        
-        // Add collision detection with proper callback binding
-        this.physics.add.collider(this.ball, this.player, this.hitPaddle.bind(this));
-        this.physics.add.collider(this.ball, this.ai, this.hitPaddle.bind(this));
-
-        this.startGame();
-    }
-
-    update() {
-        // Don't update if ball is dead (waiting for reset)
-        if (this.ballIsDead) {
-            return;
-        }
-
-        // Player control with proper bounds checking
-        if (this.input.activePointer.isDown) {
-            const pointerX = this.input.activePointer.x;
-            const halfWidth = this.paddleWidth / 2;
-            const targetX = Phaser.Math.Clamp(pointerX, halfWidth, this.game.config.width - halfWidth);
-            this.player.setX(targetX);
-        }
-
-        // AI control with smoother movement
-        const aiSpeed = 0.08;
-        const targetX = this.ball.x;
-        const halfWidth = this.paddleWidth / 2;
-        const clampedTargetX = Phaser.Math.Clamp(targetX, halfWidth, this.game.config.width - halfWidth);
-        
-        this.ai.x = Phaser.Math.Linear(this.ai.x, clampedTargetX, aiSpeed);
-
-        // Check for scoring (ball goes off screen)
-        if (this.ball.y > this.game.config.height + 50) {
-            this.handleScore('ai');
-        } else if (this.ball.y < -50) {
-            this.handleScore('player');
-        }
-    }
-    
-    handleScore(scorer) {
-        // Prevent multiple score events
-        if (this.ballIsDead) return;
-        
-        this.ballIsDead = true;
-
-        // Update scores
-        if (scorer === 'ai') {
-            this.aiScore++;
-            this.aiScoreText.setText(`AI: ${this.aiScore}`);
-        } else {
-            this.playerScore++;
-            this.playerScoreText.setText(`Player: ${this.playerScore}`);
-        }
-
-        // Stop ball movement
-        this.ball.setVelocity(0, 0);
-        
-        // Reset after delay
-        this.time.delayedCall(1000, this.resetBall, [], this);
-    }
-    
-    resetBall() {
-        // Reset ball position to center
-        this.ball.setPosition(this.cameras.main.centerX, this.cameras.main.centerY);
-
-        // Choose random direction
-        let angle;
-        if (Math.random() > 0.5) {
-            // Towards player (downward)
-            angle = Phaser.Math.FloatBetween(225, 315);
-        } else {
-            // Towards AI (upward)
-            angle = Phaser.Math.FloatBetween(45, 135);
-        }
-
-        const speed = 300; // Reduced speed for better control
-        this.physics.velocityFromAngle(angle, speed, this.ball.body.velocity);
-
-        // Ball is now alive again
-        this.ballIsDead = false;
-    }
-
-    startGame() {
-        this.ballIsDead = false;
-        this.resetBall();
-    }
-
-    // Fixed paddle collision
-    hitPaddle(ball, paddle) {
-        if (!ball || !paddle || !ball.body || !paddle.body) {
-            return; // Safety check
-        }
-
-        // Calculate hit position on paddle (-1 to 1)
-        const hitPos = (ball.x - paddle.x) / (this.paddleWidth / 2);
-        const clampedHitPos = Phaser.Math.Clamp(hitPos, -1, 1);
-
-        // Determine ball direction based on which paddle was hit
-        const isPlayerPaddle = paddle === this.player;
-        const baseSpeed = 350;
-        
-        // Calculate new velocity
-        const newVelX = clampedHitPos * 200; // Side spin based on hit position
-        const newVelY = isPlayerPaddle ? -baseSpeed : baseSpeed; // Up or down based on paddle
-
-        // Apply new velocity
-        ball.setVelocity(newVelX, newVelY);
-
-        // Add slight random variation to prevent infinite loops
-        const randomVariation = Phaser.Math.Between(-20, 20);
-        ball.setVelocityX(ball.body.velocity.x + randomVariation);
-
-        // Limit maximum speed to prevent runaway velocity
-        const maxSpeed = 600;
-        if (ball.body.velocity.length() > maxSpeed) {
-            ball.body.velocity.normalize().scale(maxSpeed);
-        }
-    }
-}
-
-// --- SCENE 3: CALL TO ACTION (CTA) SCENE ---
-class CtaScene extends Phaser.Scene {
-    constructor() {
-        super('CtaScene');
-    }
-
-    create() {
-        this.cameras.main.setBackgroundColor('#d95763');
-        
-        // Game over text
-        this.add.text(this.cameras.main.centerX, this.cameras.main.centerY - 100, 
-            'TIME\'S UP!', { fontSize: '42px', fill: '#fff', fontStyle: 'bold' }).setOrigin(0.5);
-            
-        this.add.text(this.cameras.main.centerX, this.cameras.main.centerY, 
-            'DOWNLOAD NOW!', { fontSize: '52px', fill: '#fff', fontStyle: 'bold' }).setOrigin(0.5);
-            
-        this.add.text(this.cameras.main.centerX, this.cameras.main.centerY + 100, 
-            'Click to visit store', { fontSize: '24px', fill: '#fff' }).setOrigin(0.5);
-
-        this.input.on('pointerdown', () => {
-            console.log('Redirecting to App Store...');
-            // window.open('YOUR_APP_STORE_LINK_HERE', '_blank');
-        });
-    }
-}
-
-// --- SCENE 4: UI SCENE (Timer overlay) ---
-class UIScene extends Phaser.Scene {
-    constructor() {
-        super({ key: 'UIScene', active: true });
-    }
-
-    create() {
-        this.timeLeft = 30;
-        this.timerText = this.add.text(10, 10, `Time: ${this.timeLeft}`, 
-            { fontSize: '24px', fill: '#fff', fontStyle: 'bold' }).setOrigin(0, 0);
-        
-        this.timerEvent = this.time.addEvent({ 
-            delay: 1000, 
-            callback: this.updateTimer, 
-            callbackScope: this, 
-            loop: true 
-        });
-        
-        this.gameEnded = false;
-    }
-
-    updateTimer() {
-        if (this.timeLeft > 0 && !this.gameEnded) {
-            this.timeLeft--;
-            this.timerText.setText(`Time: ${this.timeLeft}`);
-            
-            if (this.timeLeft <= 0) {
-                this.endGame();
-            }
-        }
-    }
-
-    endGame() {
-        if (this.gameEnded) return;
-        
-        this.gameEnded = true;
-        
-        if (this.timerEvent) {
-            this.timerEvent.destroy();
-        }
-        
-        // Stop the game scene and show CTA
-        this.scene.stop('GameScene');
-        this.scene.start('CtaScene');
-    }
-}
-
-// --- GAME CONFIG ---
 const config = {
     type: Phaser.AUTO,
     parent: 'game',
     width: 480,
     height: 800,
-    backgroundColor: '#1b1b25',
+    backgroundColor: '#f3fcc0',
+    scene: {
+        preload: preload, 
+        create: create,
+        update: update
+    },
     scale: {
         mode: Phaser.Scale.FIT,
         autoCenter: Phaser.Scale.CENTER_BOTH
-    },
-    physics: {
-        default: 'arcade',
-        arcade: {
-            gravity: { y: 0 },
-            debug: false
-        }
-    },
-    scene: [StartScene, GameScene, CtaScene, UIScene]
+    }
 };
+
+
+function preload() {
+    this.load.image('logo', 'assets/logo.png');
+}
+
+function create() {
+    const img = this.add.image(this.cameras.main.centerX, this.cameras.main.centerY, 'logo');
+
+    // ทำให้กดได้
+    img.setInteractive();
+    img.on('pointerdown', () => {
+        console.log('Clicked the logo!');
+    });
+}
+
+function update() {
+}
 
 const game = new Phaser.Game(config);
 
