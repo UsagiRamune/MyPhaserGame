@@ -2,7 +2,7 @@
 <html>
 <head>
     <meta charset="utf-8" />
-    <title>Playable Ad - Merge TD (UI Rework)</title>
+    <title>Playable Ad - Merge TD (Skills & Buffs)</title>
     <script src="https://cdn.jsdelivr.net/npm/phaser@3/dist/phaser.js"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -30,22 +30,24 @@ const TOWER_CONFIG = {
     ice:       { color: 0x66ccff, baseDmg: 8,  specialChance: 0.25 },
     lightning: { color: 0xffff66, baseDmg: 10, specialChance: 0.25 },
     poison:    { color: 0x8fce00, baseDmg: 6,  specialChance: 0.3 },
-    arrow:     { color: 0xffffff, baseDmg: 12, specialChance: 0.0 }
+    arrow:     { color: 0xffffff, baseDmg: 12, specialChance: 0.25 } // <<< แก้แล้ว! เพิ่มโอกาสคริให้ธนู
 };
 const ENEMY_BASE_HP = 40; const ENEMY_BASE_SPEED = 120; const ENEMY_SPAWN_DELAY = 800;
-const SUMMON_COOLDOWN = 500; const MANA_REGEN_RATE = 1; const MANA_PER_KILL = 4; const BASE_SUMMON_COST = 10;
+const SUMMON_COOLDOWN = 500; const MANA_REGEN_RATE = 8; const MANA_PER_KILL = 10; const BASE_SUMMON_COST = 10;
 
 function randChoice(arr){ return arr[Math.floor(Math.random()*arr.length)]; }
 
 /* =========================
-    SCENE: GameScene (The Stage)
+    SCENE: GameScene
    ========================= */
 class GameScene extends Phaser.Scene {
     constructor(){ super('GameScene'); }
 
     create(){
         this.isGameOver = false; this.playerHP = 3; this.lastSummon = 0; this.score = 0;
-        this.mana = 15; this.summonCount = 0;
+        this.mana = 25; this.summonCount = 0;
+        this.enemyHpMultiplier = 1; this.manaRegenRate = MANA_REGEN_RATE;
+        this.powerUpActive = false; // <<< เพิ่ม Flag สำหรับเช็คบัฟ
         this.add.rectangle(WIDTH/2, HEIGHT/2, WIDTH, HEIGHT, 0x16202a);
         this.setupGrid(); this.setupPath();
         this.towers = []; this.enemies = this.add.group(); this.projectiles = this.add.group();
@@ -57,19 +59,82 @@ class GameScene extends Phaser.Scene {
         this.physics.resume();
         this.spawnTimer = this.time.addEvent({ delay: ENEMY_SPAWN_DELAY, loop: true, callback: this.spawnEnemy, callbackScope: this });
         this.towerAttackTimer = this.time.addEvent({ delay: 200, loop: true, callback: this.updateTowerAttacks, callbackScope: this });
-        this.manaRegenTimer = this.time.addEvent({ delay: 1000, loop: true, callback: () => { this.mana += MANA_REGEN_RATE; }});
+        this.manaRegenTimer = this.time.addEvent({ delay: 1000, loop: true, callback: () => { this.mana += this.manaRegenRate; }});
     }
     
-    // <<< แก้แล้ว! >>>
     freezeGame() {
-        this.isGameOver = true;
-        this.physics.pause();
-        this.tweens.pauseAll(); // หยุดอนิเมชันทั้งหมด
+        this.isGameOver = true; this.physics.pause(); this.tweens.pauseAll();
         if (this.spawnTimer) this.spawnTimer.remove();
         if (this.towerAttackTimer) this.towerAttackTimer.remove();
         if (this.manaRegenTimer) this.manaRegenTimer.remove();
     }
+    
+    // <<< เพิ่มเข้ามา! ฟังก์ชันสำหรับรับบัฟ >>>
+    activatePowerUp() {
+        if (this.powerUpActive) return;
+        this.powerUpActive = true;
+        
+        // บัฟ Tower ที่มีอยู่ทั้งหมด
+        this.towers.forEach(tower => {
+            tower.dmg *= 2;
+            tower.attackRate /= 2;
+        });
 
+        // แสดงข้อความบนจอ
+        const buffText = this.add.text(WIDTH/2, HEIGHT/2, 'POWER SURGE!', {
+            fontSize: '48px', color: '#ff0', fontStyle: 'bold',
+            stroke: '#000', strokeThickness: 6
+        }).setOrigin(0.5).setDepth(200);
+        this.tweens.add({ targets: buffText, alpha: 0, y: '-=50', duration: 2000, onComplete: () => buffText.destroy() });
+    }
+
+    placeTowerAtCell(r, c, type, level){
+        const cell = this.grid[r][c]; if(cell.tower) return;
+        const cx=cell.x+CELL_SIZE/2; const cy=cell.y+CELL_SIZE/2;
+        const sprite = this.add.rectangle(cx,cy,CELL_SIZE-TILE_PADDING-4,CELL_SIZE-TILE_PADDING-4,TOWER_CONFIG[type].color).setStrokeStyle(2,0x000000).setInteractive({draggable:true});
+        const label = this.add.text(cx,cy+(CELL_SIZE/2)-18,`L${level}`,{fontSize:'12px',color:'#000'}).setOrigin(0.5);
+        let towerDmg = TOWER_CONFIG[type].baseDmg*Math.pow(1.4,level-1);
+        let towerAttackRate = Math.max(300-(level-1)*20,150);
+        
+        // <<< เพิ่มเข้ามา! เช็คว่าถ้าบัฟทำงานอยู่ ให้ Tower ใหม่ได้รับบัฟด้วย >>>
+        if (this.powerUpActive) {
+            towerDmg *= 2;
+            towerAttackRate /= 2;
+        }
+
+        const tower = {sprite,label,r,c,x:cx,y:cy,type,level,dmg:towerDmg,attackRate:towerAttackRate,lastAttack:0};
+        this.grid[r][c].tower = tower; this.towers.push(tower);
+    }
+    
+    // <<< แก้แล้ว! เพิ่ม Logic สกิลพิเศษให้ธนู >>>
+    towerAttack(tower, enemy){
+        const projectile = this.add.circle(tower.x, tower.y, 4, TOWER_CONFIG[tower.type].color);
+        this.tweens.add({ targets: projectile, x: enemy.x, y: enemy.y, duration: 150, onComplete: () => projectile.destroy() });
+        
+        let damage = Math.round(tower.dmg * (0.9 + Math.random() * 0.2));
+        const config = TOWER_CONFIG[tower.type];
+        const specialRoll = Math.random();
+        const specialChance = config.specialChance + (tower.level - 1) * 0.05;
+
+        // เช็คสกิล Critical Hit ของธนู
+        if (tower.type === 'arrow' && specialRoll < specialChance) {
+            damage *= 2; // ดาเมจ x2
+            // เพิ่ม Effect เวลาติดคริ
+            const critText = this.add.text(enemy.x, enemy.y, 'CRIT!', {fontSize: '16px', color: '#ffdd00', fontStyle: 'bold'}).setOrigin(0.5);
+            this.tweens.add({targets: critText, alpha: 0, y: '-=20', duration: 500, onComplete: () => critText.destroy()});
+        } 
+        // เช็คสกิลอื่นๆ ที่ไม่ใช่ธนู
+        else if (tower.type !== 'arrow' && specialRoll < specialChance){
+            this.applySpecialEffect(tower, enemy);
+        }
+
+        enemy.hp -= damage;
+        if(enemy.hp <= 0){
+            this.killEnemy(enemy);
+        }
+    }
+
+    // --- ส่วนที่เหลือของ GameScene เหมือนเดิม ---
     setupGrid(){
         const gridBg = this.add.rectangle(WIDTH/2, GRID_Y + GRID_H/2, GRID_W+16, GRID_H+16, 0x0f1720).setStrokeStyle(2, 0x2b3942);
         this.grid = [];
@@ -84,8 +149,8 @@ class GameScene extends Phaser.Scene {
         this.pathPoints = [{x:l,y:b},{x:l,y:t},{x:r,y:t},{x:r,y:b}];
         const pathGraphics = this.add.graphics(); pathGraphics.lineStyle(3, 0x555555);
         for(let i=0;i<this.pathPoints.length-1;i++){ pathGraphics.lineBetween(this.pathPoints[i].x,this.pathPoints[i].y,this.pathPoints[i+1].x,this.pathPoints[i+1].y); }
-        this.segmentLengths = [];
-        for(let i=0;i<this.pathPoints.length-1;i++){ const d = Phaser.Math.Distance.Between(this.pathPoints[i].x,this.pathPoints[i].y,this.pathPoints[i+1].x,this.pathPoints[i+1].y); this.segmentLengths.push(d); }
+        this.totalPathLength = 0; this.segmentLengths = [];
+        for(let i=0;i<this.pathPoints.length-1;i++){ const d = Phaser.Math.Distance.Between(this.pathPoints[i].x,this.pathPoints[i].y,this.pathPoints[i+1].x,this.pathPoints[i+1].y); this.segmentLengths.push(d); this.totalPathLength+=d; }
     }
     setupInputHandling(){
         this.input.on('dragstart', (p, go) => { go.setScale(1.1).setDepth(100); });
@@ -104,14 +169,6 @@ class GameScene extends Phaser.Scene {
         if (this.summonCount === 0) return BASE_SUMMON_COST;
         let totalAddedCost=0; for (let i=1;i<=this.summonCount;i++){totalAddedCost+=Math.pow(2,i);}
         return BASE_SUMMON_COST + totalAddedCost;
-    }
-    placeTowerAtCell(r, c, type, level){
-        const cell = this.grid[r][c]; if(cell.tower) return;
-        const cx=cell.x+CELL_SIZE/2; const cy=cell.y+CELL_SIZE/2;
-        const sprite = this.add.rectangle(cx,cy,CELL_SIZE-TILE_PADDING-4,CELL_SIZE-TILE_PADDING-4,TOWER_CONFIG[type].color).setStrokeStyle(2,0x000000).setInteractive({draggable:true});
-        const label = this.add.text(cx,cy+(CELL_SIZE/2)-18,`L${level}`,{fontSize:'12px',color:'#000'}).setOrigin(0.5);
-        const tower = {sprite,label,r,c,x:cx,y:cy,type,level,dmg:TOWER_CONFIG[type].baseDmg*Math.pow(1.4,level-1),attackRate:Math.max(300-(level-1)*20,150),lastAttack:0};
-        this.grid[r][c].tower = tower; this.towers.push(tower);
     }
     tryPlaceTowerFromSprite(sprite){
         const draggedTower = this.findTowerBySprite(sprite); if(!draggedTower){sprite.destroy();return;}
@@ -134,25 +191,71 @@ class GameScene extends Phaser.Scene {
     spawnEnemy(){
         if(this.isGameOver) return;
         const startPoint=this.pathPoints[0]; const enemy=this.add.rectangle(startPoint.x,startPoint.y,22,26,0xff4466).setOrigin(0.5);
-        enemy.hp=ENEMY_BASE_HP+Math.floor(this.score*1.5); enemy.speed=ENEMY_BASE_SPEED+Math.floor(this.score); enemy.isDead=false;
-        this.enemies.add(enemy); this.moveEnemyAlongPath(enemy);
+        enemy.hp=(ENEMY_BASE_HP+Math.floor(this.score*1.5))*this.enemyHpMultiplier; enemy.speed=ENEMY_BASE_SPEED+Math.floor(this.score); enemy.isDead=false;
+        enemy.progress = 0; this.enemies.add(enemy); this.moveEnemyAlongPath(enemy);
     }
     moveEnemyAlongPath(enemy){ if(!enemy||enemy.isDead)return; enemy.pathSegment=0; this.moveEnemyToNextSegment(enemy); }
     moveEnemyToNextSegment(enemy){
         if(!enemy||enemy.isDead||enemy.pathSegment>=this.pathPoints.length-1)return;
-        const nextPoint=this.pathPoints[enemy.pathSegment+1]; const distance=this.segmentLengths[enemy.pathSegment];
+        const currentPoint=this.pathPoints[enemy.pathSegment]; const nextPoint=this.pathPoints[enemy.pathSegment+1]; const distance=this.segmentLengths[enemy.pathSegment];
         const duration=(distance/enemy.speed)*1000;
-        this.tweens.add({targets:enemy,x:nextPoint.x,y:nextPoint.y,duration:duration,ease:'Linear',onComplete:()=>{if(!enemy||enemy.isDead)return;enemy.pathSegment++;if(enemy.pathSegment>=this.pathPoints.length-1){this.onEnemyReachBase(enemy);}else{this.moveEnemyToNextSegment(enemy);}}});
+        let cumulativeDistance = 0; for(let i = 0; i < enemy.pathSegment; i++){ cumulativeDistance += this.segmentLengths[i]; }
+        this.tweens.add({targets:enemy,x:nextPoint.x,y:nextPoint.y,duration:duration,ease:'Linear',
+        onUpdate:(tween)=>{if(!enemy||enemy.isDead)return;const segmentProgress=tween.progress;const totalProgressAtSegmentStart=cumulativeDistance/this.totalPathLength;const segmentWeight=distance/this.totalPathLength;enemy.progress=totalProgressAtSegmentStart+(segmentProgress*segmentWeight);},
+        onComplete:()=>{if(!enemy||enemy.isDead)return;enemy.pathSegment++;if(enemy.pathSegment>=this.pathPoints.length-1){this.onEnemyReachBase(enemy);}else{this.moveEnemyToNextSegment(enemy);}}});
     }
     onEnemyReachBase(enemy){ if(!enemy||enemy.isDead)return; enemy.isDead=true; enemy.destroy(); this.playerHP--; if(this.playerHP<=0)this.endGame(); }
     updateTowerAttacks(){
         if(this.isGameOver)return;const aliveEnemies=this.enemies.getChildren().filter(e=>e&&!e.isDead);if(aliveEnemies.length===0)return;const now=this.time.now;
-        for(let tower of this.towers){if(now-tower.lastAttack<tower.attackRate)continue;let bestTarget=null;for(let enemy of aliveEnemies){if(Phaser.Math.Distance.Between(tower.x,tower.y,enemy.x,enemy.y)<200){bestTarget=enemy;break;}}if(bestTarget){this.towerAttack(tower,bestTarget);tower.lastAttack=now;}}
+        for(let tower of this.towers){
+            if(now-tower.lastAttack<tower.attackRate)continue;
+            let bestTarget=null; let bestProgress=-1;
+            for(let enemy of aliveEnemies){ if(enemy.progress > bestProgress){ bestProgress = enemy.progress; bestTarget = enemy; } }
+            if(bestTarget){this.towerAttack(tower,bestTarget);tower.lastAttack=now;}
+        }
     }
-    towerAttack(tower,enemy){
-        const projectile=this.add.circle(tower.x,tower.y,3,0xffffff);this.tweens.add({targets:projectile,x:enemy.x,y:enemy.y,duration:200,onComplete:()=>projectile.destroy()});
-        enemy.hp-=Math.round(tower.dmg*(0.9+Math.random()*0.2)); if(enemy.hp<=0)this.killEnemy(enemy);
+    applySpecialEffect(tower, enemy){
+        switch(tower.type){
+            case 'fire': this.applyBurn(enemy, 3 + tower.level, 2000); break;
+            case 'ice': this.applySlow(enemy, 0.5, 1500); break;
+            case 'lightning': this.applyChain(enemy, tower.dmg * 0.6, 2 + tower.level); break;
+            case 'poison': this.applyPoison(enemy, 4 + tower.level, 2500); break;
+        }
     }
+    applyBurn(enemy, damagePerTick, duration){
+        if(!enemy || enemy.isDead) return;
+        const ticks = Math.floor(duration / 500);
+        const burnTimer = this.time.addEvent({ delay: 500, repeat: ticks - 1, callback: () => {
+            if(!enemy || enemy.isDead) { burnTimer.destroy(); return; }
+            enemy.hp -= damagePerTick;
+            if(enemy.hp <= 0) this.killEnemy(enemy);
+        }});
+    }
+    applySlow(enemy, slowFactor, duration){
+        if(!enemy || enemy.isDead || enemy.isSlowed) return;
+        enemy.isSlowed = true;
+        this.tweens.getTweensOf(enemy).forEach(tween => tween.timeScale = (1 - slowFactor));
+        this.time.delayedCall(duration, () => {
+            if(enemy && !enemy.isDead) {
+                enemy.isSlowed = false;
+                this.tweens.getTweensOf(enemy).forEach(tween => tween.timeScale = 1);
+            }
+        });
+    }
+    applyChain(sourceEnemy, damage, maxTargets){
+        const nearbyEnemies = this.enemies.getChildren().filter(e => e && !e.isDead && e !== sourceEnemy)
+            .sort((a,b) => Phaser.Math.Distance.Between(sourceEnemy.x, sourceEnemy.y, a.x, a.y) - Phaser.Math.Distance.Between(sourceEnemy.x, sourceEnemy.y, b.x, b.y))
+            .slice(0, maxTargets);
+        let lastEnemy = sourceEnemy;
+        for(let enemy of nearbyEnemies){
+            enemy.hp -= Math.round(damage);
+            const chainLine = this.add.line(0,0, lastEnemy.x, lastEnemy.y, enemy.x, enemy.y, 0xffff66, 0.8).setLineWidth(3,1);
+            this.tweens.add({targets: chainLine, alpha: 0, duration: 250, onComplete: ()=> chainLine.destroy()});
+            if(enemy.hp <= 0) this.killEnemy(enemy);
+            lastEnemy = enemy;
+        }
+    }
+    applyPoison(enemy, damagePerTick, duration){ this.applyBurn(enemy, damagePerTick, duration); }
     killEnemy(enemy){ if(!enemy||enemy.isDead)return; enemy.isDead=true;this.score++;this.mana+=MANA_PER_KILL;this.tweens.add({targets:enemy,alpha:0,scale:0.5,duration:200,onComplete:()=>{if(enemy)enemy.destroy();}}); }
     update(){}
     endGame(){ this.scene.get('UIScene').showCta(this.score); }
@@ -171,7 +274,7 @@ class UIScene extends Phaser.Scene {
         this.startText = this.add.text(WIDTH/2, HEIGHT/2, 'TAP TO START', {...fontStyle, fontSize: '42px'}).setOrigin(0.5);
         this.startOverlay.once('pointerdown', this.startGame, this);
         
-        this.summonBtnBg = this.add.graphics();
+        const summonBtnBg = this.add.graphics();
         this.summonBtn = this.add.zone(WIDTH/2 - 100, HEIGHT - 80, 200, 60).setOrigin(0).setInteractive();
         this.summonText = this.add.text(WIDTH/2, HEIGHT - 50, `SUMMON`, fontStyle).setOrigin(0.5);
         this.summonBtn.on('pointerdown', () => this.gameScene.doSummon());
@@ -180,7 +283,7 @@ class UIScene extends Phaser.Scene {
         this.scoreText = this.add.text(WIDTH - 20, 20, `Score: 0`, fontStyle).setOrigin(1, 0);
         this.manaText = this.add.text(20, 50, `Mana: 0`, fontStyle).setOrigin(0, 0);
         this.timerText = this.add.text(WIDTH/2, 20, 'Time: 30', fontStyle).setOrigin(0.5, 0);
-        this.inGameUI = [this.summonBtnBg, this.summonBtn, this.summonText, this.manaText, this.scoreText, this.hpText, this.timerText];
+        this.inGameUI = [summonBtnBg, this.summonBtn, this.summonText, this.manaText, this.scoreText, this.hpText, this.timerText];
         this.inGameUI.forEach(ui => ui.setVisible(false));
 
         this.ctaOverlay = this.add.rectangle(WIDTH/2, HEIGHT/2, WIDTH, HEIGHT, 0x000000, 0.8).setVisible(false);
@@ -188,6 +291,7 @@ class UIScene extends Phaser.Scene {
         this.ctaText = this.add.text(WIDTH/2, HEIGHT/2 + 50, 'PLAY NOW!', {...fontStyle, fontSize: '64px'}).setOrigin(0.5).setVisible(false);
         this.ctaUI = [this.ctaOverlay, this.ctaScoreText, this.ctaText];
     }
+    
     startGame(){
         this.startOverlay.setVisible(false); this.startText.setVisible(false);
         this.inGameUI.forEach(ui => ui.setVisible(true));
@@ -195,11 +299,25 @@ class UIScene extends Phaser.Scene {
         this.timeLeft = 30;
         this.timerEvent = this.time.addEvent({ delay: 1000, callback: this.updateTimer, callbackScope: this, loop: true });
     }
+    
     updateTimer(){
-        this.timeLeft--; if (this.timeLeft < 0) return;
+        this.timeLeft--; 
+        if (this.timeLeft < 0) return;
         this.timerText.setText(`Time: ${this.timeLeft}`);
+        
+        if (this.timeLeft === 20) { this.gameScene.spawnTimer.delay = 300; }
+        if (this.timeLeft === 15) { this.gameScene.enemyHpMultiplier = 2.5; }
+        
+        // <<< แก้แล้ว! Event ใหม่ที่เวลาเหลือ 10 วินาที >>>
+        if (this.timeLeft === 10) {
+            console.log("EVENT: PLAYER BUFF & MANA SURGE!");
+            this.gameScene.manaRegenRate = 25;
+            this.gameScene.activatePowerUp(); // เรียกใช้ฟังก์ชันบัฟ
+        }
+        
         if (this.timeLeft <= 0) { this.timerEvent.remove(); this.gameScene.endGame(); }
     }
+
     showCta(score){
         this.gameScene.freezeGame();
         this.inGameUI.forEach(ui => ui.setVisible(false));
@@ -207,9 +325,10 @@ class UIScene extends Phaser.Scene {
         this.ctaScoreText.setText(`Final Score: ${score}`);
         this.ctaOverlay.setInteractive().on('pointerdown', () => console.log("Redirecting..."));
     }
+    
     update(){
         if(this.inGameUI[0].visible) {
-            this.manaText.setText(`Mana: ${this.gameScene.mana}`);
+            this.manaText.setText(`Mana: ${Math.floor(this.gameScene.mana)}`);
             this.hpText.setText(`HP: ${this.gameScene.playerHP}`);
             this.scoreText.setText(`Score: ${this.gameScene.score}`);
             const cost = this.gameScene.getCurrentSummonCost();
