@@ -1,0 +1,49 @@
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;700&display=swap');
+
+html, body {
+    height: 100%;
+    margin: 0;
+    overflow: hidden; /* ป้องกันการเลื่อนจอโดยไม่จำเป็น */
+}
+
+body {
+    font-family: 'Poppins', sans-serif;
+    background-color: #0d1117;
+}
+
+/* --- Container หลัก จัดทุกอย่างให้อยู่กลางจอ --- */
+.main-container {
+    display: flex;
+    flex-direction: column; /* เรียงจากบนลงล่าง */
+    justify-content: center; /* จัดให้อยู่กลางแนวตั้ง */
+    align-items: center;    /* จัดให้อยู่กลางแนวนอน */
+    height: 100vh; /* สูงเต็มจอพอดี */
+    padding: 1rem;
+}
+
+header h1 {
+    color: #fff;
+}
+
+/* --- Game Container --- */
+#game-container {
+    position: relative;
+    width: 100%;
+    max-width: 400px; /* จำกัดความกว้างสูงสุดบนจอใหญ่ */
+    flex-shrink: 1;   /* อนุญาตให้หดตัวได้บนจอเล็ก */
+    
+    aspect-ratio: 480 / 800; /* รักษาสัดส่วนจอเกม */
+    border-radius: 15px;
+    overflow: hidden;
+    box-shadow: 0 0 30px rgba(0, 123, 255, 0.5);
+    border: 3px solid #1a2c4a;
+}
+
+#game-container iframe {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    border: none;
+}
