@@ -291,6 +291,18 @@ class UIScene extends Phaser.Scene {
         this.ctaScoreText = this.add.text(WIDTH/2, HEIGHT/2 - 50, '', {...fontStyle, fontSize: '32px'}).setOrigin(0.5).setVisible(false);
         this.ctaText = this.add.text(WIDTH/2, HEIGHT/2 + 50, 'PLAY NOW!', {...fontStyle, fontSize: '64px'}).setOrigin(0.5).setVisible(false);
         this.ctaUI = [this.ctaOverlay, this.ctaScoreText, this.ctaText];
+
+        this.fpsText = this.add.text(10, HEIGHT - 40, '', {
+            fontSize: '12px', color: '#0f0'
+        });
+        this.deltaText = this.add.text(10, HEIGHT - 25, '', {
+            fontSize: '12px', color: '#0f0'
+        });
+        
+        this.inGameUI = [
+            summonBtnBg, this.summonBtn, this.summonText, this.manaText, 
+            this.scoreText, this.hpText, this.timerText, this.fpsText, this.deltaText
+        ];
     }
     
     startGame(){
@@ -327,7 +339,7 @@ class UIScene extends Phaser.Scene {
         this.ctaOverlay.setInteractive().on('pointerdown', () => console.log("Redirecting..."));
     }
     
-    update(){
+    update(time, delta){
         if(this.inGameUI[0].visible) {
             this.manaText.setText(`Mana: ${Math.floor(this.gameScene.mana)}`);
             this.hpText.setText(`HP: ${this.gameScene.playerHP}`);
@@ -337,6 +349,9 @@ class UIScene extends Phaser.Scene {
             const summonBtnBg = this.inGameUI[0];
             const color = this.gameScene.mana >= cost ? 0x1f8fff : 0x666666;
             summonBtnBg.clear().fillStyle(color, 1).fillRoundedRect(WIDTH/2 - 100, HEIGHT - 80, 200, 60, 15);
+
+            this.fpsText.setText(`FPS: ${this.game.loop.actualFps.toFixed(1)}`);
+            this.deltaText.setText(`Delta: ${delta.toFixed(2)}ms`);
         }
     }
 }
