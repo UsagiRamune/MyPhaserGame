@@ -2,7 +2,7 @@
 <html>
 <head>
     <meta charset="utf-8" />
-    <title>Playable Ad - Merge TD (Final Request)</title>
+    <title>Playable Ad - Merge TD (Button Fix)</title>
     <script src="https://cdn.jsdelivr.net/npm/phaser@3/dist/phaser.js"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -43,6 +43,7 @@ const ULTIMATE_EXPLOSION_DMG = 80;
 const ULTIMATE_EXPLOSION_RADIUS = 55;
 const ULTIMATE_FIRE_ZONE_DURATION = 3000;
 const ULTIMATE_FIRE_DMG = 15;
+const REDIRECT_URL = 'https://kheeplayableads.netlify.app';
 
 function randChoice(arr){ return arr[Math.floor(Math.random()*arr.length)]; }
 
@@ -723,7 +724,6 @@ class UIScene extends Phaser.Scene {
         this.skipButtonBg = this.add.graphics().setVisible(false);
         this.skipButton.on('pointerdown', () => this.showVictoryCta(this.gameScene.score, 'GAME OVER'));
         
-        // FPS and Delta Time (for debugging)
         // this.fpsText = this.add.text(15, HEIGHT - 50, '', { fontSize: '18px', color: '#0f0' });
         // this.deltaText = this.add.text(15, HEIGHT - 30, '', { fontSize: '18px', color: '#0f0' });
         
@@ -733,32 +733,65 @@ class UIScene extends Phaser.Scene {
         this.createTimesUpCta();
         this.inGameUI.forEach(ui => { if(ui) ui.setVisible(false); });
     }
+    
     createVictoryCta() {
         this.victoryCtaGroup = this.add.group();
         const overlay = this.add.rectangle(WIDTH/2,HEIGHT/2,WIDTH,HEIGHT,0x000000,0.8);
         this.victoryTitleText = this.add.text(WIDTH/2, HEIGHT/2 - 120, 'VICTORY!', {...this.fontStyle, fontSize:'84px'}).setOrigin(0.5);
-        this.victoryScoreText = this.add.text(WIDTH/2, HEIGHT/2, '', {...this.fontStyle, fontSize:'48px'}).setOrigin(0.5);
-        const ctaText = this.add.text(WIDTH/2, HEIGHT/2 + 100, 'PLAY NOW!', {...this.fontStyle, fontSize:'64px'}).setOrigin(0.5).setInteractive();
+        this.victoryScoreText = this.add.text(WIDTH/2, HEIGHT/2 - 20, '', {...this.fontStyle, fontSize:'48px'}).setOrigin(0.5);
+        
+        const ctaButtonBg = this.add.graphics();
+        ctaButtonBg.fillStyle(0x1a73e8, 1);
+        ctaButtonBg.fillRoundedRect(WIDTH/2 - 150, HEIGHT/2 + 60, 300, 80, 20);
+
+        const ctaText = this.add.text(WIDTH/2, HEIGHT/2 + 100, 'PLAY NOW!', {...this.fontStyle, fontSize:'40px'}).setOrigin(0.5);
+        
+        // <<< กูแก้ตรงนี้! เพิ่ม .setOrigin(0) เพื่อแก้บั๊กปุ่มเบี้ยว >>>
+        const ctaZone = this.add.zone(WIDTH/2 - 150, HEIGHT/2 + 60, 300, 80).setOrigin(0).setInteractive();
+        
         const retryButton = this.add.text(WIDTH/2, HEIGHT/2 + 220, 'Retry', {...this.fontStyle, fontSize: '36px', color: '#aaa'}).setOrigin(0.5).setInteractive();
-        this.victoryCtaGroup.addMultiple([overlay, this.victoryTitleText, this.victoryScoreText, ctaText, retryButton]);
+        
+        this.victoryCtaGroup.addMultiple([overlay, this.victoryTitleText, this.victoryScoreText, ctaButtonBg, ctaText, ctaZone, retryButton]);
         this.victoryCtaGroup.setVisible(false);
-        ctaText.on('pointerdown', () => console.log("Redirecting..."));
+        
+        ctaZone.on('pointerdown', () => {
+            console.log("Redirecting to:", REDIRECT_URL);
+            window.open(REDIRECT_URL, '_blank');
+        });
         retryButton.once('pointerdown', () => { this.scene.start('GameScene'); this.scene.restart(); });
     }
+
     createTimesUpCta() {
         this.timesUpCtaGroup = this.add.group();
         const overlay = this.add.rectangle(WIDTH/2,HEIGHT/2,WIDTH,HEIGHT,0x000000,0.8);
         const title = this.add.text(WIDTH/2, HEIGHT/2 - 120, "TIME'S UP!", {...this.fontStyle, fontSize:'84px'}).setOrigin(0.5);
-        const ctaText = this.add.text(WIDTH/2, HEIGHT/2 + 10, 'PLAY NOW!', {...this.fontStyle, fontSize:'64px'}).setOrigin(0.5).setInteractive();
-        const resumeButton = this.add.text(WIDTH/2, HEIGHT/2 + 150, 'RESUME', {...this.fontStyle, fontSize: '48px', color: '#66ff66'}).setOrigin(0.5).setInteractive();
-        this.timesUpCtaGroup.addMultiple([overlay, title, ctaText, resumeButton]);
+        
+        this.timesUpScoreText = this.add.text(WIDTH/2, HEIGHT/2 - 20, '', {...this.fontStyle, fontSize:'48px'}).setOrigin(0.5);
+
+        const ctaButtonBg = this.add.graphics();
+        ctaButtonBg.fillStyle(0x1a73e8, 1);
+        ctaButtonBg.fillRoundedRect(WIDTH/2 - 150, HEIGHT/2 + 60, 300, 80, 20);
+        
+        const ctaText = this.add.text(WIDTH/2, HEIGHT/2 + 100, 'PLAY NOW!', {...this.fontStyle, fontSize:'40px'}).setOrigin(0.5);
+
+        // <<< กูแก้ตรงนี้! เพิ่ม .setOrigin(0) เพื่อแก้บั๊กปุ่มเบี้ยว >>>
+        const ctaZone = this.add.zone(WIDTH/2 - 150, HEIGHT/2 + 60, 300, 80).setOrigin(0).setInteractive();
+
+        const resumeButton = this.add.text(WIDTH/2, HEIGHT/2 + 220, 'RESUME', {...this.fontStyle, fontSize: '48px', color: '#66ff66'}).setOrigin(0.5).setInteractive();
+
+        this.timesUpCtaGroup.addMultiple([overlay, title, this.timesUpScoreText, ctaButtonBg, ctaText, ctaZone, resumeButton]);
         this.timesUpCtaGroup.setVisible(false);
-        ctaText.on('pointerdown', () => console.log("Redirecting..."));
+
+        ctaZone.on('pointerdown', () => {
+            console.log("Redirecting to:", REDIRECT_URL);
+            window.open(REDIRECT_URL, '_blank');
+        });
         resumeButton.on('pointerdown', () => {
             this.timesUpCtaGroup.setVisible(false);
             this.gameScene.unfreezeGame();
         });
     }
+
     createTowerLegend() {
         this.towerLegendGroup = this.add.group();
         const legendY = HEIGHT - 220;
@@ -799,7 +832,7 @@ class UIScene extends Phaser.Scene {
         if (this.timeLeft <= -1) { 
             if(this.timerEvent) this.timerEvent.remove(); 
             this.timerText.setVisible(false);
-            this.showTimesUpCta();
+            this.showTimesUpCta(this.gameScene.score);
             this.skipButton.setVisible(true).setInteractive();
             this.skipButtonBg.setVisible(true);
         }
@@ -818,10 +851,13 @@ class UIScene extends Phaser.Scene {
         this.victoryTitleText.setText(title);
         this.victoryScoreText.setText(`Final Score: ${score}`);
     }
-    showTimesUpCta() {
+    
+    showTimesUpCta(score) {
         this.gameScene.freezeGame(); 
         this.timesUpCtaGroup.setVisible(true);
+        this.timesUpScoreText.setText(`Your Score: ${score}`);
     }
+
     update(time, delta){
         if(this.startOverlay.visible || !this.gameScene.sys.isActive()) return;
         this.manaText.setText(`Mana: ${Math.floor(this.gameScene.mana)}`);
@@ -844,8 +880,7 @@ class UIScene extends Phaser.Scene {
             this.ultimateBtnBg.clear().fillStyle(0xff4444, 1).fillRoundedRect(ultBtnX, HEIGHT - 110, 150, 80, 20);
             this.ultimateCooldownIndicator.clear();
         }
-
-        // FPS and Delta Time (for debugging)
+        
         // if (this.fpsText) {
         //     this.fpsText.setText(`FPS: ${this.game.loop.actualFps.toFixed(1)}`);
         //     this.deltaText.setText(`Delta: ${delta.toFixed(2)}ms`);
