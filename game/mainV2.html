@@ -722,12 +722,16 @@ class UIScene extends Phaser.Scene {
         this.skipButton = this.add.text(skipButtonX, skipButtonY, 'Skip Ad', { ...this.fontStyle, fontSize: '22px', color: '#fff' }).setOrigin(0.5).setVisible(false).disableInteractive();
         this.skipButtonBg = this.add.graphics().setVisible(false);
         this.skipButton.on('pointerdown', () => this.showVictoryCta(this.gameScene.score, 'GAME OVER'));
-        this.fpsText = this.add.text(15, HEIGHT - 50, '', { fontSize: '18px', color: '#0f0' });
-        this.deltaText = this.add.text(15, HEIGHT - 30, '', { fontSize: '18px', color: '#0f0' });
-        this.inGameUI = [summonBtnBg, this.summonBtn, this.summonText, this.manaText, this.scoreText, this.hpText, this.timerText, this.fpsText, this.deltaText, this.ultimateBtnBg, this.ultimateCooldownIndicator, this.ultimateBtn, this.ultimateText, this.skipButton, this.skipButtonBg];
+        
+        // FPS and Delta Time (for debugging)
+        // this.fpsText = this.add.text(15, HEIGHT - 50, '', { fontSize: '18px', color: '#0f0' });
+        // this.deltaText = this.add.text(15, HEIGHT - 30, '', { fontSize: '18px', color: '#0f0' });
+        
+        this.inGameUI = [summonBtnBg, this.summonBtn, this.summonText, this.manaText, this.scoreText, this.hpText, this.timerText, /*this.fpsText, this.deltaText,*/ this.ultimateBtnBg, this.ultimateCooldownIndicator, this.ultimateBtn, this.ultimateText, this.skipButton, this.skipButtonBg];
+        
         this.createVictoryCta();
         this.createTimesUpCta();
-        this.inGameUI.forEach(ui => ui.setVisible(false));
+        this.inGameUI.forEach(ui => { if(ui) ui.setVisible(false); });
     }
     createVictoryCta() {
         this.victoryCtaGroup = this.add.group();
@@ -773,18 +777,15 @@ class UIScene extends Phaser.Scene {
         this.towerLegendGroup.add(title);
         this.towerLegendGroup.setVisible(false);
     }
-
-    // <<< กูแก้ตรงนี้! เปลี่ยนเวลาเริ่มต้นเป็น 15 >>>
     startGame(){
         this.startOverlay.setVisible(false); this.startText.setVisible(false);
-        this.inGameUI.forEach(ui => ui.setVisible(true));
+        this.inGameUI.forEach(ui => { if(ui) ui.setVisible(true); });
         this.towerLegendGroup.setVisible(true);
         this.gameScene.startGame();
-        this.timeLeft = 15; // <-- เปลี่ยนเป็น 15
+        this.timeLeft = 15;
         this.timerEvent = this.time.addEvent({ delay: 1000, callback: this.updateTimer, callbackScope: this, loop: true });
     }
     
-    // <<< กูแก้ตรงนี้! ให้มันขึ้น CTA ตอนหมดเวลา 15 วิ >>>
     updateTimer(){
         if(this.gameScene.isGameOver) { 
             if(this.timerEvent) this.timerEvent.remove(); 
@@ -793,9 +794,9 @@ class UIScene extends Phaser.Scene {
         if(this.timeLeft < 0) return; 
 
         this.timeLeft--; 
-        this.timerText.setText(`Time: ${this.timeLeft}`);
+        this.timerText.setText(`Time: ${this.timeLeft + 1}`);
 
-        if (this.timeLeft <= 0) { 
+        if (this.timeLeft <= -1) { 
             if(this.timerEvent) this.timerEvent.remove(); 
             this.timerText.setVisible(false);
             this.showTimesUpCta();
@@ -811,7 +812,7 @@ class UIScene extends Phaser.Scene {
     showVictoryCta(score, title){
         if (this.timerEvent) this.timerEvent.remove();
         this.gameScene.freezeGame();
-        this.inGameUI.forEach(ui => ui.setVisible(false));
+        this.inGameUI.forEach(ui => { if(ui) ui.setVisible(false); });
         this.towerLegendGroup.setVisible(false);
         this.victoryCtaGroup.setVisible(true);
         this.victoryTitleText.setText(title);
@@ -843,8 +844,12 @@ class UIScene extends Phaser.Scene {
             this.ultimateBtnBg.clear().fillStyle(0xff4444, 1).fillRoundedRect(ultBtnX, HEIGHT - 110, 150, 80, 20);
             this.ultimateCooldownIndicator.clear();
         }
-        this.fpsText.setText(`FPS: ${this.game.loop.actualFps.toFixed(1)}`);
-        this.deltaText.setText(`Delta: ${delta.toFixed(2)}ms`);
+
+        // FPS and Delta Time (for debugging)
+        // if (this.fpsText) {
+        //     this.fpsText.setText(`FPS: ${this.game.loop.actualFps.toFixed(1)}`);
+        //     this.deltaText.setText(`Delta: ${delta.toFixed(2)}ms`);
+        // }
     }
 }
 /* =========================
