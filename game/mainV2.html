@@ -2,7 +2,7 @@
 <html>
 <head>
     <meta charset="utf-8" />
-    <title>Playable Ad - Merge TD (Balanced & HD)</title>
+    <title>Playable Ad - Merge TD (Final Request)</title>
     <script src="https://cdn.jsdelivr.net/npm/phaser@3/dist/phaser.js"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -53,11 +53,10 @@ class TutorialManager {
     constructor(gameScene, uiScene) {
         this.gameScene = gameScene;
         this.uiScene = uiScene;
-        this.currentState = 'IDLE'; // 'IDLE', 'SUMMON', 'LEGEND', 'MERGE', 'ULTIMATE', 'DONE'
+        this.currentState = 'IDLE';
         this.indicator = null;
         this.instructionGroup = this.uiScene.add.group();
     }
-
     start() {
         this.currentState = 'SUMMON';
         this.gameScene.time.delayedCall(500, () => {
@@ -65,21 +64,18 @@ class TutorialManager {
             this.showSummonInstruction();
         });
     }
-
     showSummonInstruction() {
         const summonBtn = this.uiScene.summonBtn;
         const targetX = summonBtn.x + summonBtn.width / 2;
         const targetY = summonBtn.y;
         this.createHighlight('Press SUMMON to create a Tower!', targetX, targetY, 'down');
     }
-
     onSummonPressed() {
         if (this.currentState !== 'SUMMON') return;
         this.clearInstructions();
         this.currentState = 'LEGEND';
         this.gameScene.time.delayedCall(500, () => this.showLegendInstruction());
     }
-
     showLegendInstruction() {
         const legendY = HEIGHT - 220;
         this.createHighlight('These are the different Tower types!', WIDTH / 2, legendY - 60, 'up', 500, 120);
@@ -91,7 +87,6 @@ class TutorialManager {
             this.startMergeIndicator();
         });
     }
-    
     startMergeIndicator() {
         if (this.currentState !== 'MERGE') return;
         this.indicator = this.gameScene.time.addEvent({
@@ -101,14 +96,13 @@ class TutorialManager {
             loop: true
         });
     }
-    
     checkForMergeableTowers() {
         const towers = this.gameScene.towers;
         const towerMap = new Map();
         for (const tower of towers) {
             const key = `${tower.type}_${tower.level}`;
             if (towerMap.has(key)) {
-                this.indicator.remove();
+                if(this.indicator) this.indicator.remove();
                 this.indicator = null;
                 this.gameScene.freezeGame();
                 this.showMergeInstruction();
@@ -117,7 +111,6 @@ class TutorialManager {
             towerMap.set(key, tower);
         }
     }
-
     showMergeInstruction() {
         this.createHighlight('Drag and MERGE identical Towers\nto upgrade them!', WIDTH / 2, GRID_Y + GRID_H / 2, 'none');
          this.uiScene.input.once('pointerdown', () => {
@@ -127,7 +120,6 @@ class TutorialManager {
              this.currentState = 'ULTIMATE';
          });
     }
-    
     checkUltimate(gameTime) {
         if (this.currentState === 'ULTIMATE' && gameTime > 10000) {
             this.currentState = 'DONE';
@@ -135,7 +127,6 @@ class TutorialManager {
             this.showUltimateInstruction();
         }
     }
-
     showUltimateInstruction() {
         const ultBtn = this.uiScene.ultimateBtn;
         const targetY = ultBtn.y;
@@ -147,22 +138,17 @@ class TutorialManager {
              this.gameScene.unfreezeGame();
          });
     }
-
     createHighlight(text, x, y, arrowDir = 'down', width = 400, height = 120, arrowX) {
         this.clearInstructions();
-        
         const finalArrowX = arrowX || x;
-
         const box = this.uiScene.add.graphics({ fillStyle: { color: 0x000000, alpha: 0.8 }, lineStyle: { width: 3, color: 0xffffff, alpha: 1 } });
         box.fillRoundedRect(x - width/2, y - height - 20, width, height, 15);
         box.strokeRoundedRect(x - width/2, y - height - 20, width, height, 15);
-
         const instructionText = this.uiScene.add.text(x, y - height/2 - 20, text, {
             fontSize: '32px', color: '#ffffff', fontStyle: 'bold', align: 'center',
             fontFamily: "'Poppins', Arial, sans-serif",
             wordWrap: { width: width - 20 }
         }).setOrigin(0.5);
-
         let arrow;
         if (arrowDir === 'down') {
             arrow = this.uiScene.add.text(finalArrowX, y - 30, '▼', { fontSize: '48px', color: '#ffff00' }).setOrigin(0.5);
@@ -171,14 +157,9 @@ class TutorialManager {
             arrow = this.uiScene.add.text(finalArrowX, y + 20, '▲', { fontSize: '48px', color: '#ffff00' }).setOrigin(0.5);
             this.uiScene.tweens.add({ targets: arrow, y: '-=10', duration: 500, yoyo: true, repeat: -1 });
         }
-
-        this.instructionGroup.add(box);
-        this.instructionGroup.add(instructionText);
-        if (arrow) this.instructionGroup.add(arrow);
-        
+        this.instructionGroup.addMultiple([box, instructionText, arrow].filter(Boolean));
         this.instructionGroup.getChildren().forEach(c => c.setDepth(5000));
     }
-
     clearInstructions() {
         this.instructionGroup.clear(true, true);
     }
@@ -190,6 +171,15 @@ class TutorialManager {
    ========================= */
 class GameScene extends Phaser.Scene {
     constructor(){ super('GameScene'); }
+
+    preload() {
+        const graphics = this.make.graphics({x: 0, y: 0, add: false});
+        graphics.fillStyle(0xffffff);
+        graphics.fillCircle(5, 5, 5);
+        graphics.generateTexture('projectile_texture', 10, 10);
+        graphics.destroy();
+    }
+
     create(){
         this.playerHP = 5; this.score = 0; this.mana = 30; this.summonCount = 0;
         this.powerUpActive = false; this.bossSpawned = false; this.boss = null; 
@@ -202,6 +192,19 @@ class GameScene extends Phaser.Scene {
         this.setupGrid(); this.setupPath();
         this.towers = []; this.enemies = this.add.group();
         this.setupInputHandling();
+        
+        this.floatingTextPool = this.add.group({
+            classType: Phaser.GameObjects.Text,
+            maxSize: 50,
+            runChildUpdate: false
+        });
+
+        this.projectilePool = this.add.group({
+            defaultKey: 'projectile_texture',
+            maxSize: 100,
+            runChildUpdate: false
+        });
+
         this.physics.pause();
         
         this.tutorial = new TutorialManager(this, this.scene.get('UIScene'));
@@ -330,7 +333,7 @@ class GameScene extends Phaser.Scene {
                     if (now - enemy.lastFireTick > 500) {
                         enemy.lastFireTick = now;
                         enemy.hp -= ULTIMATE_FIRE_DMG;
-                        this.showDamageNumber(enemy.x, enemy.y, ULTIMATE_FIRE_DMG, '#ff6600');
+                        this.showFloatingText(enemy.x, enemy.y, ULTIMATE_FIRE_DMG, '#ff6600');
                         if (enemy.hp <= 0) this.killEnemy(enemy);
                     }
                 }
@@ -379,7 +382,6 @@ class GameScene extends Phaser.Scene {
     setupPath(){
         const m=40, l=GRID_X-m, r=GRID_X+GRID_W+m, t=GRID_Y-m, b=GRID_Y+GRID_H+m;
         this.pathPoints = [{x:l,y:b},{x:l,y:t},{x:r,y:t},{x:r,y:b}];
-        this.pathSegments = [{start:{x:l,y:b},end:{x:l,y:t}},{start:{x:l,y:t},end:{x:r,y:t}},{start:{x:r,y:t},end:{x:r,y:b}}];
         const pathGraphics=this.add.graphics(); 
         pathGraphics.lineStyle(5,0x555555);
         for(let i=0;i<this.pathPoints.length-1;i++) { pathGraphics.lineBetween(this.pathPoints[i].x,this.pathPoints[i].y,this.pathPoints[i+1].x,this.pathPoints[i+1].y); }
@@ -444,20 +446,17 @@ class GameScene extends Phaser.Scene {
             const manaLevel = Math.max(t1.level, t2.level);
             const manaBonus = 15 + (manaLevel * 10);
             this.mana += manaBonus;
-            const manaText = this.add.text(GRID_X+tc*CELL_SIZE+CELL_SIZE/2, GRID_Y+tr*CELL_SIZE+CELL_SIZE/2-50, `+${manaBonus} MANA`, {fontSize:'20px',color:'#9966ff',fontStyle:'bold',fontFamily:"'Poppins', Arial, sans-serif"}).setOrigin(0.5);
-            this.tweens.add({targets: manaText, alpha: 0, y: '-=30', duration: 1200, onComplete: () => manaText.destroy()});
+            this.showFloatingText(GRID_X+tc*CELL_SIZE+CELL_SIZE/2, GRID_Y+tr*CELL_SIZE+CELL_SIZE/2 - 50, `+${manaBonus} MANA`, '#9966ff', -30, 1200, 20);
         }
         this.destroyTower(t1); this.destroyTower(t2); 
         const newLevel=t1.level+1;
         let newType;
         if (Math.random() < 0.3) {
             newType = randChoice(TOWER_TYPES);
-            const riskText = this.add.text(GRID_X+tc*CELL_SIZE+CELL_SIZE/2, GRID_Y+tr*CELL_SIZE+CELL_SIZE/2-40, 'TYPE CHANGED!', {fontSize:'16px',color:'#ff4444',fontStyle:'bold',fontFamily:"'Poppins', Arial, sans-serif"}).setOrigin(0.5);
-            this.tweens.add({targets: riskText, alpha: 0, y: '-=25', duration: 1000, onComplete: () => riskText.destroy()});
+            this.showFloatingText(GRID_X+tc*CELL_SIZE+CELL_SIZE/2, GRID_Y+tr*CELL_SIZE+CELL_SIZE/2 - 40, 'TYPE CHANGED!', '#ff4444', -25, 1000, 16);
         } else { newType = t1.type; }
         this.placeTowerAtCell(tr,tc,newType,newLevel); 
-        const cell=this.grid[tr][tc]; 
-        const fx=this.add.circle(cell.x+CELL_SIZE/2,cell.y+CELL_SIZE/2,40,0xffffff,0.8); 
+        const fx=this.add.circle(GRID_X+tc*CELL_SIZE+CELL_SIZE/2, GRID_Y+tr*CELL_SIZE+CELL_SIZE/2, 40, 0xffffff, 0.8); 
         this.tweens.add({targets:fx,scale:2.5,alpha:0,duration:300, onComplete:()=>fx.destroy()});
     }
     
@@ -545,27 +544,69 @@ class GameScene extends Phaser.Scene {
     }
     
     towerAttack(tower,enemy){ 
-        const projectile=this.add.circle(tower.x,tower.y,5,TOWER_CONFIG[tower.type].color);
-        this.tweens.add({ targets:projectile,x:enemy.x,y:enemy.y,duration:200, onComplete:()=>projectile.destroy() }); 
+        const projectile = this.projectilePool.get(tower.x, tower.y);
+        if (!projectile) return;
+
+        projectile.setActive(true).setVisible(true).setTint(TOWER_CONFIG[tower.type].color);
+        
+        this.tweens.add({ 
+            targets: projectile, 
+            x: enemy.x, 
+            y: enemy.y, 
+            duration: 200, 
+            onComplete: () => {
+                if (projectile.active) {
+                    this.projectilePool.killAndHide(projectile);
+                }
+            }
+        }); 
+        
         let damage=Math.round(tower.dmg*(0.9+Math.random()*0.2));
         const config=TOWER_CONFIG[tower.type];
-        const specialRoll=Math.random();
-        const specialChance=config.specialChance+(tower.level-1)*0.05;
-        if(specialRoll<specialChance){
+        if(Math.random() < (config.specialChance+(tower.level-1)*0.05)){
             if(tower.type==='arrow'){
                 damage*=2;
-                const critText=this.add.text(enemy.x,enemy.y,'CRIT!',{fontSize:'22px',color:'#ffdd00',fontStyle:'bold'}).setOrigin(0.5);
-                this.tweens.add({targets:critText,alpha:0,y:'-=25',duration:500,onComplete:()=>critText.destroy()});
+                this.showFloatingText(enemy.x, enemy.y, 'CRIT!', '#ffdd00', -25, 500);
             }else{ this.applySpecialEffect(tower,enemy); }
         }
         enemy.hp-=damage; 
-        this.showDamageNumber(enemy.x, enemy.y, damage, '#ffffff');
+        this.showFloatingText(enemy.x, enemy.y, damage, '#ffffff');
         if(enemy.hp<=0)this.killEnemy(enemy);
     }
     
-    showDamageNumber(x, y, amount, color) {
-        const dmgText = this.add.text(x, y, `${amount}`, { fontSize: '22px', color: color, fontStyle: 'bold', stroke: '#000', strokeThickness: 4, fontFamily: "'Poppins', Arial, sans-serif" }).setOrigin(0.5).setDepth(200);
-        this.tweens.add({ targets: dmgText, y: y - 40, alpha: 0, duration: 800, ease: 'Power1.easeOut', onComplete: () => dmgText.destroy() });
+    showFloatingText(x, y, message, color, yOffset = -40, duration = 800, fontSize = 22) {
+        const text = this.floatingTextPool.get();
+        if (text) {
+             const textStyle = {
+                fontSize: `${fontSize}px`,
+                fontStyle: 'bold',
+                stroke: '#000',
+                strokeThickness: 4,
+                fontFamily: "'Poppins', Arial, sans-serif",
+                color: color
+            };
+            text.setText(message)
+                .setStyle(textStyle)
+                .setOrigin(0.5, 0.5)
+                .setPosition(x, y)
+                .setAlpha(1)
+                .setDepth(200)
+                .setActive(true)
+                .setVisible(true);
+
+            this.tweens.add({
+                targets: text,
+                y: y + yOffset,
+                alpha: 0,
+                duration: duration,
+                ease: 'Power1.easeOut',
+                onComplete: () => {
+                    if (text.active) {
+                       this.floatingTextPool.killAndHide(text);
+                    }
+                }
+            });
+        }
     }
 
     castUltimate() {
@@ -584,7 +625,7 @@ class GameScene extends Phaser.Scene {
                 if (distance < ULTIMATE_EXPLOSION_RADIUS) {
                     const damage = Math.round(ULTIMATE_EXPLOSION_DMG * (1 - (distance / ULTIMATE_EXPLOSION_RADIUS)));
                     enemyInRadius.hp -= damage;
-                    this.showDamageNumber(enemyInRadius.x, enemyInRadius.y, damage, '#ffdd00');
+                    this.showFloatingText(enemyInRadius.x, enemyInRadius.y, damage, '#ffdd00');
                     if (enemyInRadius.hp <= 0) this.killEnemy(enemyInRadius);
                 }
             });
@@ -610,7 +651,7 @@ class GameScene extends Phaser.Scene {
         if(!enemy || enemy.isDead) return;
         const burnTimer = this.time.addEvent({ delay: 500, repeat: Math.floor(duration/500)-1, callback: () => {
                 if(!enemy || enemy.isDead) { burnTimer.destroy(); return; }
-                enemy.hp -= damagePerTick; this.showDamageNumber(enemy.x, enemy.y, damagePerTick, '#ff6a00');
+                enemy.hp -= damagePerTick; this.showFloatingText(enemy.x, enemy.y, damagePerTick, '#ff6a00');
                 if(enemy.hp <= 0) this.killEnemy(enemy);
         }});
     }
@@ -628,7 +669,7 @@ class GameScene extends Phaser.Scene {
         let lastEnemy = sourceEnemy;
         for(let enemy of sameSegmentEnemies){
             const roundedDamage = Math.round(damage);
-            enemy.hp -= roundedDamage; this.showDamageNumber(enemy.x, enemy.y, roundedDamage, '#ffff66');
+            enemy.hp -= roundedDamage; this.showFloatingText(enemy.x, enemy.y, roundedDamage, '#ffff66');
             const chainLine = this.add.line(0, 0, lastEnemy.x, lastEnemy.y, enemy.x, enemy.y, 0xffff66, 0.8).setLineWidth(4, 2);
             this.tweens.add({ targets: chainLine, alpha: 0, duration: 250, onComplete: () => chainLine.destroy() });
             if(enemy.hp <= 0) this.killEnemy(enemy);
@@ -641,7 +682,7 @@ class GameScene extends Phaser.Scene {
         enemy.isPoisoned = true;
         const poisonTimer = this.time.addEvent({ delay: 500, repeat: Math.floor(duration/500)-1, callback: () => {
                 if(!enemy || enemy.isDead) { poisonTimer.destroy(); return; }
-                enemy.hp -= damagePerTick; this.showDamageNumber(enemy.x, enemy.y, damagePerTick, '#8fce00');
+                enemy.hp -= damagePerTick; this.showFloatingText(enemy.x, enemy.y, damagePerTick, '#8fce00');
                 if(enemy.hp <= 0) this.killEnemy(enemy);
             }, onComplete: () => { if(enemy && !enemy.isDead) enemy.isPoisoned = false; }
         });
@@ -655,20 +696,15 @@ class UIScene extends Phaser.Scene {
     constructor(){ super({key: 'UIScene', active: true}); }
     create(){
         this.gameScene = this.scene.get('GameScene');
-        // <<< แก้ไขแล้ว! ทำให้ fontStyle เป็น property ของ Scene >>>
         this.fontStyle = { fontFamily: "'Poppins', Arial, sans-serif", fontSize: '32px', color: '#fff', fontStyle: '700' };
-        
         this.startOverlay = this.add.rectangle(WIDTH/2, HEIGHT/2, WIDTH, HEIGHT, 0x000000, 0.7).setInteractive();
         this.startText = this.add.text(WIDTH/2, HEIGHT/2, 'TAP TO START', { ...this.fontStyle, fontSize: '56px' }).setOrigin(0.5);
         this.startOverlay.setDepth(4000); this.startText.setDepth(4001);
-        
         this.startOverlay.once('pointerdown', this.startGame, this);
-        
         const summonBtnBg = this.add.graphics();
         this.summonBtn = this.add.zone(WIDTH/2-140, HEIGHT-110, 280, 80).setOrigin(0).setInteractive();
         this.summonText = this.add.text(WIDTH/2, HEIGHT-70, `SUMMON`, this.fontStyle).setOrigin(0.5);
         this.summonBtn.on('pointerdown', () => this.gameScene.doSummon());
-        
         this.ultimateBtnBg = this.add.graphics();
         this.ultimateCooldownIndicator = this.add.graphics();
         const ultBtnX = WIDTH - 180;
@@ -676,73 +712,49 @@ class UIScene extends Phaser.Scene {
         this.ultimateBtn = this.add.zone(ultBtnX, HEIGHT - 110, 150, 80).setOrigin(0).setInteractive();
         this.ultimateText = this.add.text(ultTextX, HEIGHT - 70, 'ULTIMATE', { ...this.fontStyle, fontSize: '24px' }).setOrigin(0.5);
         this.ultimateBtn.on('pointerdown', () => this.gameScene.castUltimate());
-        
         this.hpText = this.add.text(30, 30, `HP: 0`, this.fontStyle).setOrigin(0,0);
         this.scoreText = this.add.text(WIDTH-30, 30, `Score: 0`, this.fontStyle).setOrigin(1,0);
         this.manaText = this.add.text(30, 80, `Mana: 0`, this.fontStyle).setOrigin(0,0);
-        this.timerText = this.add.text(WIDTH/2, 30, 'Time: 30', this.fontStyle).setOrigin(0.5,0);
-        
+        this.timerText = this.add.text(WIDTH/2, 30, 'Time: 15', this.fontStyle).setOrigin(0.5,0);
         this.createTowerLegend();
-        
         const skipButtonX = WIDTH - 95;
         const skipButtonY = 105;
-        this.skipButton = this.add.text(skipButtonX, skipButtonY, 'Skip Ad', {
-            ...this.fontStyle,
-            fontSize: '22px',
-            color: '#fff'
-        }).setOrigin(0.5).setInteractive().setVisible(false);
-        
+        this.skipButton = this.add.text(skipButtonX, skipButtonY, 'Skip Ad', { ...this.fontStyle, fontSize: '22px', color: '#fff' }).setOrigin(0.5).setVisible(false).disableInteractive();
         this.skipButtonBg = this.add.graphics().setVisible(false);
-        const textBounds = this.skipButton.getBounds();
-        this.skipButtonBg.fillStyle(0x000000, 0.7);
-        this.skipButtonBg.fillRoundedRect(textBounds.x - 15, textBounds.y - 5, textBounds.width + 30, textBounds.height + 10, 12);
         this.skipButton.on('pointerdown', () => this.showVictoryCta(this.gameScene.score, 'GAME OVER'));
-        
         this.fpsText = this.add.text(15, HEIGHT - 50, '', { fontSize: '18px', color: '#0f0' });
         this.deltaText = this.add.text(15, HEIGHT - 30, '', { fontSize: '18px', color: '#0f0' });
-        
         this.inGameUI = [summonBtnBg, this.summonBtn, this.summonText, this.manaText, this.scoreText, this.hpText, this.timerText, this.fpsText, this.deltaText, this.ultimateBtnBg, this.ultimateCooldownIndicator, this.ultimateBtn, this.ultimateText, this.skipButton, this.skipButtonBg];
-        
         this.createVictoryCta();
         this.createTimesUpCta();
-        
         this.inGameUI.forEach(ui => ui.setVisible(false));
     }
-    
     createVictoryCta() {
         this.victoryCtaGroup = this.add.group();
         const overlay = this.add.rectangle(WIDTH/2,HEIGHT/2,WIDTH,HEIGHT,0x000000,0.8);
-        // <<< แก้ไขแล้ว! ใช้ this.fontStyle >>>
         this.victoryTitleText = this.add.text(WIDTH/2, HEIGHT/2 - 120, 'VICTORY!', {...this.fontStyle, fontSize:'84px'}).setOrigin(0.5);
         this.victoryScoreText = this.add.text(WIDTH/2, HEIGHT/2, '', {...this.fontStyle, fontSize:'48px'}).setOrigin(0.5);
         const ctaText = this.add.text(WIDTH/2, HEIGHT/2 + 100, 'PLAY NOW!', {...this.fontStyle, fontSize:'64px'}).setOrigin(0.5).setInteractive();
         const retryButton = this.add.text(WIDTH/2, HEIGHT/2 + 220, 'Retry', {...this.fontStyle, fontSize: '36px', color: '#aaa'}).setOrigin(0.5).setInteractive();
-        
         this.victoryCtaGroup.addMultiple([overlay, this.victoryTitleText, this.victoryScoreText, ctaText, retryButton]);
         this.victoryCtaGroup.setVisible(false);
-        
         ctaText.on('pointerdown', () => console.log("Redirecting..."));
         retryButton.once('pointerdown', () => { this.scene.start('GameScene'); this.scene.restart(); });
     }
-
     createTimesUpCta() {
         this.timesUpCtaGroup = this.add.group();
         const overlay = this.add.rectangle(WIDTH/2,HEIGHT/2,WIDTH,HEIGHT,0x000000,0.8);
-        // <<< แก้ไขแล้ว! ใช้ this.fontStyle >>>
         const title = this.add.text(WIDTH/2, HEIGHT/2 - 120, "TIME'S UP!", {...this.fontStyle, fontSize:'84px'}).setOrigin(0.5);
         const ctaText = this.add.text(WIDTH/2, HEIGHT/2 + 10, 'PLAY NOW!', {...this.fontStyle, fontSize:'64px'}).setOrigin(0.5).setInteractive();
         const resumeButton = this.add.text(WIDTH/2, HEIGHT/2 + 150, 'RESUME', {...this.fontStyle, fontSize: '48px', color: '#66ff66'}).setOrigin(0.5).setInteractive();
-
         this.timesUpCtaGroup.addMultiple([overlay, title, ctaText, resumeButton]);
         this.timesUpCtaGroup.setVisible(false);
-
         ctaText.on('pointerdown', () => console.log("Redirecting..."));
         resumeButton.on('pointerdown', () => {
             this.timesUpCtaGroup.setVisible(false);
             this.gameScene.unfreezeGame();
         });
     }
-
     createTowerLegend() {
         this.towerLegendGroup = this.add.group();
         const legendY = HEIGHT - 220;
@@ -754,69 +766,70 @@ class UIScene extends Phaser.Scene {
             const rect = this.add.rectangle(x, legendY, 28, 22, TOWER_CONFIG[type].color).setStrokeStyle(2, 0x333333);
             const nameText = (type === 'lightning') ? 'BOLT' : type.toUpperCase();
             const effectText = {fire:'Burn',ice:'Slow',lightning:'Chain',poison:'DoT',arrow:'Crit',mana:'Bonus'}[type];
-            const name = this.add.text(x, legendY + 22, nameText, {fontSize: '14px', color: '#fff', fontStyle: 'bold', fontFamily: "'Poppins', Arial, sans-serif"}).setOrigin(0.5);
-            const effect = this.add.text(x, legendY + 40, effectText, {fontSize: '12px', color: '#aaa', fontFamily: "'Poppins', Arial, sans-serif"}).setOrigin(0.5);
+            const name = this.add.text(x, legendY + 22, nameText, {fontSize: '14px', color: '#fff', fontStyle: 'bold'}).setOrigin(0.5);
+            const effect = this.add.text(x, legendY + 40, effectText, {fontSize: '12px', color: '#aaa'}).setOrigin(0.5);
             this.towerLegendGroup.addMultiple([rect, name, effect]);
         });
         this.towerLegendGroup.add(title);
         this.towerLegendGroup.setVisible(false);
     }
 
+    // <<< กูแก้ตรงนี้! เปลี่ยนเวลาเริ่มต้นเป็น 15 >>>
     startGame(){
         this.startOverlay.setVisible(false); this.startText.setVisible(false);
         this.inGameUI.forEach(ui => ui.setVisible(true));
         this.towerLegendGroup.setVisible(true);
         this.gameScene.startGame();
-        this.timeLeft = 30;
+        this.timeLeft = 15; // <-- เปลี่ยนเป็น 15
         this.timerEvent = this.time.addEvent({ delay: 1000, callback: this.updateTimer, callbackScope: this, loop: true });
     }
     
+    // <<< กูแก้ตรงนี้! ให้มันขึ้น CTA ตอนหมดเวลา 15 วิ >>>
     updateTimer(){
-        if(this.gameScene.isGameOver) { this.timerEvent.remove(); return; }
-        if(this.timeLeft <= 0) return; this.timeLeft--; 
+        if(this.gameScene.isGameOver) { 
+            if(this.timerEvent) this.timerEvent.remove(); 
+            return; 
+        }
+        if(this.timeLeft < 0) return; 
+
+        this.timeLeft--; 
         this.timerText.setText(`Time: ${this.timeLeft}`);
-        if ((30 - this.timeLeft) % 5 === 0 && (30 - this.timeLeft) > 0) { this.gameScene.increaseDifficulty(); }
+
         if (this.timeLeft <= 0) { 
-            this.timerEvent.remove(); 
+            if(this.timerEvent) this.timerEvent.remove(); 
             this.timerText.setVisible(false);
             this.showTimesUpCta();
-            this.skipButton.setVisible(true); 
+            this.skipButton.setVisible(true).setInteractive();
             this.skipButtonBg.setVisible(true);
         }
     }
 
     showUltimateText() {
-        const ultText = this.add.text(WIDTH/2, HEIGHT/2, 'ULTIMATE!', { fontSize: '92px', color: '#ffdd00', fontStyle: 'bold', stroke: '#ff6600', strokeThickness: 12, fontFamily: "'Poppins', Arial, sans-serif" }).setOrigin(0.5).setDepth(300).setScale(0.5);
+        const ultText = this.add.text(WIDTH/2, HEIGHT/2, 'ULTIMATE!', { fontSize: '92px', color: '#ffdd00', fontStyle: 'bold', stroke: '#ff6600', strokeThickness: 12 }).setOrigin(0.5).setDepth(300).setScale(0.5);
         this.tweens.add({ targets: ultText, scale: 1.2, alpha: 0, duration: 1500, ease: 'Cubic.easeOut', onComplete: () => ultText.destroy() });
     }
-    
     showVictoryCta(score, title){
         if (this.timerEvent) this.timerEvent.remove();
         this.gameScene.freezeGame();
         this.inGameUI.forEach(ui => ui.setVisible(false));
         this.towerLegendGroup.setVisible(false);
-        
         this.victoryCtaGroup.setVisible(true);
         this.victoryTitleText.setText(title);
         this.victoryScoreText.setText(`Final Score: ${score}`);
     }
-
     showTimesUpCta() {
-        this.gameScene.freezeGame(false); 
+        this.gameScene.freezeGame(); 
         this.timesUpCtaGroup.setVisible(true);
     }
-    
     update(time, delta){
         if(this.startOverlay.visible || !this.gameScene.sys.isActive()) return;
         this.manaText.setText(`Mana: ${Math.floor(this.gameScene.mana)}`);
         this.hpText.setText(`HP: ${this.gameScene.playerHP}`);
         this.scoreText.setText(`Score: ${this.gameScene.score}`);
-        
         const cost = this.gameScene.getCurrentSummonCost();
         this.summonText.setText(`SUMMON (${cost})`);
         const summonBtnBg = this.inGameUI[0];
         summonBtnBg.clear().fillStyle(this.gameScene.mana >= cost ? 0x1f8fff : 0x666666, 1).fillRoundedRect(WIDTH/2 - 140, HEIGHT - 110, 280, 80, 20);
-        
         const timeSinceUltimate = this.game.getTime() - this.gameScene.lastUltimateTime;
         const ultBtnX = WIDTH - 180;
         const ultTextX = WIDTH - 105;
@@ -830,7 +843,6 @@ class UIScene extends Phaser.Scene {
             this.ultimateBtnBg.clear().fillStyle(0xff4444, 1).fillRoundedRect(ultBtnX, HEIGHT - 110, 150, 80, 20);
             this.ultimateCooldownIndicator.clear();
         }
-
         this.fpsText.setText(`FPS: ${this.game.loop.actualFps.toFixed(1)}`);
         this.deltaText.setText(`Delta: ${delta.toFixed(2)}ms`);
     }
@@ -844,14 +856,9 @@ const config = {
     height: HEIGHT,
     parent: 'game',
     backgroundColor: '#000011',
-    
     render: {
-        antialias: true,
-        pixelArt: false,
-        roundPixels: true
+        powerPreference: 'high-performance'
     },
-    resolution: window.devicePixelRatio || 1,
-    
     physics: {
         default: 'arcade',
         arcade: { debug: false }
