@@ -2,7 +2,7 @@
 <html>
 <head>
     <meta charset="utf-8" />
-    <title>Playable Ad - Merge TD (Balanced)</title>
+    <title>Playable Ad - Merge TD (Balanced & HD)</title>
     <script src="https://cdn.jsdelivr.net/npm/phaser@3/dist/phaser.js"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -19,12 +19,13 @@
 /* =========================
     CONFIG / CONSTANTS
    ========================= */
-const WIDTH = 480; const HEIGHT = 800;
-const GRID_COLS = 4; const GRID_ROWS = 5; const CELL_SIZE = 80;
+const WIDTH = 648; const HEIGHT = 1080; // <<< แก้ไขแล้ว!
+const GRID_COLS = 4; const GRID_ROWS = 5; 
+const CELL_SIZE = 110; // <<< แก้ไขแล้ว!
 const GRID_W = GRID_COLS * CELL_SIZE; const GRID_H = GRID_ROWS * CELL_SIZE;
 const GRID_X = (WIDTH - GRID_W) / 2; 
-const GRID_Y = 180;
-const TILE_PADDING = 8;
+const GRID_Y = 240; // <<< แก้ไขแล้ว!
+const TILE_PADDING = 10; // <<< แก้ไขแล้ว!
 const TOWER_TYPES = ['fire','ice','lightning','poison','arrow','mana'];
 const TOWER_CONFIG = {
     fire:      { color: 0xff6a00, baseDmg: 15, specialChance: 0.2 },
@@ -39,7 +40,7 @@ const MEDIUM_ENEMY_HP = 120; const MEDIUM_ENEMY_SPEED = 100; const MEDIUM_MANA_R
 const MANA_REGEN_RATE = 10; const MANA_PER_KILL = 12; const BASE_SUMMON_COST = 10;
 const ULTIMATE_COOLDOWN = 30000;
 const ULTIMATE_EXPLOSION_DMG = 80;
-const ULTIMATE_EXPLOSION_RADIUS = 40;
+const ULTIMATE_EXPLOSION_RADIUS = 55; // <<< แก้ไขแล้ว!
 const ULTIMATE_FIRE_ZONE_DURATION = 3000;
 const ULTIMATE_FIRE_DMG = 15;
 
@@ -54,7 +55,7 @@ class GameScene extends Phaser.Scene {
         this.playerHP = 5; this.score = 0; this.mana = 30; this.summonCount = 0;
         this.powerUpActive = false; this.bossSpawned = false; this.boss = null; 
         this.difficultyLevel = 0; this.isGameOver = false;
-        this.waitingForAllEnemiesToDie = false; // ADDED: New win condition state
+        this.waitingForAllEnemiesToDie = false;
         this.ultimateReady = true; this.lastUltimateTime = -ULTIMATE_COOLDOWN; this.fireZones = [];
 
         this.add.rectangle(WIDTH/2, HEIGHT/2, WIDTH, HEIGHT, 0x16202a);
@@ -91,7 +92,7 @@ class GameScene extends Phaser.Scene {
         if (this.powerUpActive) return;
         this.powerUpActive = true;
         this.towers.forEach(tower => { tower.dmg *= 2; tower.attackRate /= 2; });
-        const buffText = this.add.text(WIDTH/2, HEIGHT/2, 'POWER SURGE!', { fontSize: '48px', color: '#ff0', fontStyle: 'bold', stroke: '#000', strokeThickness: 6 }).setOrigin(0.5).setDepth(200);
+        const buffText = this.add.text(WIDTH/2, HEIGHT/2, 'POWER SURGE!', { fontSize: '64px', color: '#ff0', fontStyle: 'bold', stroke: '#000', strokeThickness: 8 }).setOrigin(0.5).setDepth(200);
         this.tweens.add({ targets: buffText, alpha: 0, y: '-=50', duration: 2000, onComplete: () => buffText.destroy() });
     }
     
@@ -99,12 +100,12 @@ class GameScene extends Phaser.Scene {
         this.bossSpawned = true;
         this.spawnTimer.paused = true;
         const startPoint = this.pathPoints[0];
-        const boss = this.add.rectangle(startPoint.x, startPoint.y, 60, 70, 0xcc00ff).setOrigin(0.5).setStrokeStyle(3, 0xffffff);
+        const boss = this.add.rectangle(startPoint.x, startPoint.y, 80, 90, 0xcc00ff).setOrigin(0.5).setStrokeStyle(4, 0xffffff);
         boss.hp = ENEMY_BASE_HP * 150;
         boss.maxHp = boss.hp;
         boss.speed = ENEMY_BASE_SPEED * 0.4;
         boss.isDead = false; boss.progress = 0; boss.isBoss = true;
-        boss.hpText = this.add.text(boss.x, boss.y - 50, `${Math.round(boss.hp)}`, { fontSize: '20px', color: '#ffffff', fontStyle: 'bold', stroke: '#000', strokeThickness: 4, fontFamily: "'Poppins', Arial, sans-serif" }).setOrigin(0.5).setDepth(150);
+        boss.hpText = this.add.text(boss.x, boss.y - 60, `${Math.round(boss.hp)}`, { fontSize: '28px', color: '#ffffff', fontStyle: 'bold', stroke: '#000', strokeThickness: 5, fontFamily: "'Poppins', Arial, sans-serif" }).setOrigin(0.5).setDepth(150);
         this.enemies.add(boss);
         this.moveEnemyAlongPath(boss);
         this.boss = boss;
@@ -143,7 +144,6 @@ class GameScene extends Phaser.Scene {
 
         if (this.score >= 150 && !this.bossSpawned) this.spawnBoss();
         
-        // MODIFIED: Change win condition logic
         if (enemy === this.boss) {
             this.waitingForAllEnemiesToDie = true;
         }
@@ -154,7 +154,7 @@ class GameScene extends Phaser.Scene {
         
         this.enemies.getChildren().forEach(enemy => {
             if(enemy && enemy.active && !enemy.isDead && enemy.hpText && enemy.hpText.active) {
-                const yOffset = enemy.isBoss ? -55 : (enemy.isMedium ? -28 : -25);
+                const yOffset = enemy.isBoss ? -70 : (enemy.isMedium ? -40 : -30);
                 enemy.hpText.setPosition(enemy.x, enemy.y + yOffset);
                 enemy.hpText.setText(`${Math.round(enemy.hp)}`);
                 const hpPercent = enemy.hp / enemy.maxHp;
@@ -180,11 +180,10 @@ class GameScene extends Phaser.Scene {
             });
         });
 
-        // MODIFIED: Check for win condition after boss is defeated
         if (this.waitingForAllEnemiesToDie) {
             if (this.enemies.getChildren().length === 0) {
-                this.waitingForAllEnemiesToDie = false; // Prevent this from running again
-                this.time.delayedCall(1000, this.endGame, [], this); // Delay 1 sec then end
+                this.waitingForAllEnemiesToDie = false; 
+                this.time.delayedCall(1000, this.endGame, [], this);
             }
         }
     }
@@ -202,20 +201,20 @@ class GameScene extends Phaser.Scene {
     
     setupGrid(){
         this.grid = Array(GRID_ROWS).fill(null).map(() => Array(GRID_COLS).fill(null));
-        this.add.rectangle(WIDTH/2, GRID_Y + GRID_H/2, GRID_W+16, GRID_H+16, 0x0f1720).setStrokeStyle(2, 0x2b3942);
+        this.add.rectangle(WIDTH/2, GRID_Y + GRID_H/2, GRID_W+20, GRID_H+20, 0x0f1720).setStrokeStyle(3, 0x2b3942); // <<< แก้ไขแล้ว!
         for(let r=0;r<GRID_ROWS;r++) {
             for(let c=0;c<GRID_COLS;c++) {
-                this.add.rectangle(GRID_X+c*CELL_SIZE+CELL_SIZE/2, GRID_Y+r*CELL_SIZE+CELL_SIZE/2, CELL_SIZE-TILE_PADDING, CELL_SIZE-TILE_PADDING, 0x0a2533).setStrokeStyle(1, 0x24414e);
+                this.add.rectangle(GRID_X+c*CELL_SIZE+CELL_SIZE/2, GRID_Y+r*CELL_SIZE+CELL_SIZE/2, CELL_SIZE-TILE_PADDING, CELL_SIZE-TILE_PADDING, 0x0a2533).setStrokeStyle(2, 0x24414e); // <<< แก้ไขแล้ว!
             }
         }
     }
     
-    setupPath(){
-        const m=30, l=GRID_X-m, r=GRID_X+GRID_W+m, t=GRID_Y-m, b=GRID_Y+GRID_H+m;
+    setupPath(){ // <<< แก้ไขแล้ว!
+        const m=40, l=GRID_X-m, r=GRID_X+GRID_W+m, t=GRID_Y-m, b=GRID_Y+GRID_H+m;
         this.pathPoints = [{x:l,y:b},{x:l,y:t},{x:r,y:t},{x:r,y:b}];
         this.pathSegments = [{start:{x:l,y:b},end:{x:l,y:t}},{start:{x:l,y:t},end:{x:r,y:t}},{start:{x:r,y:t},end:{x:r,y:b}}];
         const pathGraphics=this.add.graphics(); 
-        pathGraphics.lineStyle(3,0x555555);
+        pathGraphics.lineStyle(5,0x555555); // <<< แก้ไขแล้ว!
         for(let i=0;i<this.pathPoints.length-1;i++) { pathGraphics.lineBetween(this.pathPoints[i].x,this.pathPoints[i].y,this.pathPoints[i+1].x,this.pathPoints[i+1].y); }
         this.totalPathLength=0; this.segmentLengths=[];
         for(let i=0;i<this.pathPoints.length-1;i++){ 
@@ -247,9 +246,9 @@ class GameScene extends Phaser.Scene {
     placeTowerAtCell(r, c, type, level){
         if(this.grid[r][c] && this.grid[r][c].tower) return;
         const cx=GRID_X+c*CELL_SIZE+CELL_SIZE/2, cy=GRID_Y+r*CELL_SIZE+CELL_SIZE/2;
-        const sprite=this.add.rectangle(cx,cy,CELL_SIZE-TILE_PADDING-4,CELL_SIZE-TILE_PADDING-4,TOWER_CONFIG[type].color).setStrokeStyle(2,0x000000).setInteractive({draggable:true});
+        const sprite=this.add.rectangle(cx,cy,CELL_SIZE-TILE_PADDING-6,CELL_SIZE-TILE_PADDING-6,TOWER_CONFIG[type].color).setStrokeStyle(3,0x000000).setInteractive({draggable:true}); // <<< แก้ไขแล้ว!
         sprite.setDepth(1);
-        const label=this.add.text(cx,cy+(CELL_SIZE/2)-18,`L${level}`,{fontSize:'12px',color:'#000', fontFamily:"'Poppins', Arial, sans-serif", fontStyle:'bold'}).setOrigin(0.5).setDepth(2);
+        const label=this.add.text(cx,cy+(CELL_SIZE/2)-24,`L${level}`,{fontSize:'18px',color:'#000', fontFamily:"'Poppins', Arial, sans-serif", fontStyle:'bold'}).setOrigin(0.5).setDepth(2); // <<< แก้ไขแล้ว!
         let towerDmg=TOWER_CONFIG[type].baseDmg*Math.pow(1.4,level-1);
         let towerAttackRate=Math.max(300-(level-1)*20,150);
         if(this.powerUpActive){towerDmg*=2;towerAttackRate/=2;}
@@ -277,24 +276,24 @@ class GameScene extends Phaser.Scene {
             const manaLevel = Math.max(t1.level, t2.level);
             const manaBonus = 15 + (manaLevel * 10);
             this.mana += manaBonus;
-            const manaText = this.add.text(GRID_X+tc*CELL_SIZE+CELL_SIZE/2, GRID_Y+tr*CELL_SIZE+CELL_SIZE/2-40, `+${manaBonus} MANA`, {fontSize:'14px',color:'#9966ff',fontStyle:'bold',fontFamily:"'Poppins', Arial, sans-serif"}).setOrigin(0.5);
-            this.tweens.add({targets: manaText, alpha: 0, y: '-=25', duration: 1200, onComplete: () => manaText.destroy()});
+            const manaText = this.add.text(GRID_X+tc*CELL_SIZE+CELL_SIZE/2, GRID_Y+tr*CELL_SIZE+CELL_SIZE/2-50, `+${manaBonus} MANA`, {fontSize:'20px',color:'#9966ff',fontStyle:'bold',fontFamily:"'Poppins', Arial, sans-serif"}).setOrigin(0.5); // <<< แก้ไขแล้ว!
+            this.tweens.add({targets: manaText, alpha: 0, y: '-=30', duration: 1200, onComplete: () => manaText.destroy()});
         }
         this.destroyTower(t1); this.destroyTower(t2); 
         const newLevel=t1.level+1;
         let newType;
         if (Math.random() < 0.3) {
             newType = randChoice(TOWER_TYPES);
-            const riskText = this.add.text(GRID_X+tc*CELL_SIZE+CELL_SIZE/2, GRID_Y+tr*CELL_SIZE+CELL_SIZE/2-30, 'TYPE CHANGED!', {fontSize:'12px',color:'#ff4444',fontStyle:'bold',fontFamily:"'Poppins', Arial, sans-serif"}).setOrigin(0.5);
-            this.tweens.add({targets: riskText, alpha: 0, y: '-=20', duration: 1000, onComplete: () => riskText.destroy()});
+            const riskText = this.add.text(GRID_X+tc*CELL_SIZE+CELL_SIZE/2, GRID_Y+tr*CELL_SIZE+CELL_SIZE/2-40, 'TYPE CHANGED!', {fontSize:'16px',color:'#ff4444',fontStyle:'bold',fontFamily:"'Poppins', Arial, sans-serif"}).setOrigin(0.5); // <<< แก้ไขแล้ว!
+            this.tweens.add({targets: riskText, alpha: 0, y: '-=25', duration: 1000, onComplete: () => riskText.destroy()});
         } else { newType = t1.type; }
         this.placeTowerAtCell(tr,tc,newType,newLevel); 
         const cell=this.grid[tr][tc]; 
-        const fx=this.add.circle(cell.x+CELL_SIZE/2,cell.y+CELL_SIZE/2,30,0xffffff,0.8); 
-        this.tweens.add({targets:fx,scale:2,alpha:0,duration:300, onComplete:()=>fx.destroy()});
+        const fx=this.add.circle(cell.x+CELL_SIZE/2,cell.y+CELL_SIZE/2,40,0xffffff,0.8); 
+        this.tweens.add({targets:fx,scale:2.5,alpha:0,duration:300, onComplete:()=>fx.destroy()});
     }
     
-    returnTowerToOriginalPosition(t){ t.sprite.x=t.x; t.sprite.y=t.y; t.label.x=t.x; t.label.y=t.y+(CELL_SIZE/2)-18; }
+    returnTowerToOriginalPosition(t){ t.sprite.x=t.x; t.sprite.y=t.y; t.label.x=t.x; t.label.y=t.y+(CELL_SIZE/2)-24; } // <<< แก้ไขแล้ว!
     findTowerBySprite(s){return this.towers.find(t=>t.sprite===s);}
     destroyTower(t){
         if(t.sprite)t.sprite.destroy(); if(t.label)t.label.destroy();
@@ -305,12 +304,12 @@ class GameScene extends Phaser.Scene {
     spawnEnemy(){
         if(this.isGameOver)return; 
         const startPoint=this.pathPoints[0]; 
-        const enemy=this.add.rectangle(startPoint.x,startPoint.y,22,26,0xff4466).setOrigin(0.5).setStrokeStyle(2, 0xffffff);
+        const enemy=this.add.rectangle(startPoint.x,startPoint.y,30,36,0xff4466).setOrigin(0.5).setStrokeStyle(3, 0xffffff); // <<< แก้ไขแล้ว!
         enemy.hp=(ENEMY_BASE_HP+Math.floor(this.score*0.3))*(1+this.difficultyLevel*0.25);
         enemy.maxHp = enemy.hp;
         enemy.speed=ENEMY_BASE_SPEED+(this.difficultyLevel*12);
         enemy.isDead=false; enemy.progress=0; enemy.isMedium=false; enemy.isBoss=false;
-        enemy.hpText = this.add.text(enemy.x, enemy.y - 25, `${Math.round(enemy.hp)}`, { fontSize: '11px', color: '#ffffff', fontStyle: 'bold', stroke: '#000', strokeThickness: 3, fontFamily: "'Poppins', Arial, sans-serif" }).setOrigin(0.5).setDepth(150);
+        enemy.hpText = this.add.text(enemy.x, enemy.y - 30, `${Math.round(enemy.hp)}`, { fontSize: '16px', color: '#ffffff', fontStyle: 'bold', stroke: '#000', strokeThickness: 4, fontFamily: "'Poppins', Arial, sans-serif" }).setOrigin(0.5).setDepth(150); // <<< แก้ไขแล้ว!
         this.enemies.add(enemy); 
         this.moveEnemyAlongPath(enemy);
     }
@@ -321,12 +320,12 @@ class GameScene extends Phaser.Scene {
             this.time.delayedCall(i * 500, () => {
                 if (this.isGameOver) return;
                 const startPoint = this.pathPoints[0];
-                const mediumEnemy = this.add.rectangle(startPoint.x, startPoint.y, 28, 32, 0xff8800).setOrigin(0.5).setStrokeStyle(2, 0xffffff);
+                const mediumEnemy = this.add.rectangle(startPoint.x, startPoint.y, 40, 46, 0xff8800).setOrigin(0.5).setStrokeStyle(3, 0xffffff); // <<< แก้ไขแล้ว!
                 mediumEnemy.hp = MEDIUM_ENEMY_HP + (this.difficultyLevel * 18);
                 mediumEnemy.maxHp = mediumEnemy.hp;
                 mediumEnemy.speed = MEDIUM_ENEMY_SPEED;
                 mediumEnemy.isDead = false; mediumEnemy.progress = 0; mediumEnemy.isMedium = true; mediumEnemy.isBoss = false;
-                mediumEnemy.hpText = this.add.text(mediumEnemy.x, mediumEnemy.y - 28, `${Math.round(mediumEnemy.hp)}`, { fontSize: '14px', color: '#ffffff', fontStyle: 'bold', stroke: '#000', strokeThickness: 3, fontFamily: "'Poppins', Arial, sans-serif" }).setOrigin(0.5).setDepth(150);
+                mediumEnemy.hpText = this.add.text(mediumEnemy.x, mediumEnemy.y - 40, `${Math.round(mediumEnemy.hp)}`, { fontSize: '20px', color: '#ffffff', fontStyle: 'bold', stroke: '#000', strokeThickness: 4, fontFamily: "'Poppins', Arial, sans-serif" }).setOrigin(0.5).setDepth(150); // <<< แก้ไขแล้ว!
                 this.enemies.add(mediumEnemy);
                 this.moveEnemyAlongPath(mediumEnemy);
             });
@@ -378,7 +377,7 @@ class GameScene extends Phaser.Scene {
     }
     
     towerAttack(tower,enemy){ 
-        const projectile=this.add.circle(tower.x,tower.y,3,TOWER_CONFIG[tower.type].color);
+        const projectile=this.add.circle(tower.x,tower.y,5,TOWER_CONFIG[tower.type].color); // <<< แก้ไขแล้ว!
         this.tweens.add({ targets:projectile,x:enemy.x,y:enemy.y,duration:200, onComplete:()=>projectile.destroy() }); 
         let damage=Math.round(tower.dmg*(0.9+Math.random()*0.2));
         const config=TOWER_CONFIG[tower.type];
@@ -387,8 +386,8 @@ class GameScene extends Phaser.Scene {
         if(specialRoll<specialChance){
             if(tower.type==='arrow'){
                 damage*=2;
-                const critText=this.add.text(enemy.x,enemy.y,'CRIT!',{fontSize:'16px',color:'#ffdd00',fontStyle:'bold'}).setOrigin(0.5);
-                this.tweens.add({targets:critText,alpha:0,y:'-=20',duration:500,onComplete:()=>critText.destroy()});
+                const critText=this.add.text(enemy.x,enemy.y,'CRIT!',{fontSize:'22px',color:'#ffdd00',fontStyle:'bold'}).setOrigin(0.5); // <<< แก้ไขแล้ว!
+                this.tweens.add({targets:critText,alpha:0,y:'-=25',duration:500,onComplete:()=>critText.destroy()});
             }else{ this.applySpecialEffect(tower,enemy); }
         }
         enemy.hp-=damage; 
@@ -397,8 +396,8 @@ class GameScene extends Phaser.Scene {
     }
     
     showDamageNumber(x, y, amount, color) {
-        const dmgText = this.add.text(x, y, `${amount}`, { fontSize: '16px', color: color, fontStyle: 'bold', stroke: '#000', strokeThickness: 3, fontFamily: "'Poppins', Arial, sans-serif" }).setOrigin(0.5).setDepth(200);
-        this.tweens.add({ targets: dmgText, y: y - 30, alpha: 0, duration: 800, ease: 'Power1.easeOut', onComplete: () => dmgText.destroy() });
+        const dmgText = this.add.text(x, y, `${amount}`, { fontSize: '22px', color: color, fontStyle: 'bold', stroke: '#000', strokeThickness: 4, fontFamily: "'Poppins', Arial, sans-serif" }).setOrigin(0.5).setDepth(200); // <<< แก้ไขแล้ว!
+        this.tweens.add({ targets: dmgText, y: y - 40, alpha: 0, duration: 800, ease: 'Power1.easeOut', onComplete: () => dmgText.destroy() });
     }
 
     castUltimate() {
@@ -410,7 +409,7 @@ class GameScene extends Phaser.Scene {
         const aliveEnemies = this.enemies.getChildren().filter(e => e && !e.isDead);
         aliveEnemies.forEach(target => {
             const explosionX = target.x, explosionY = target.y;
-            const explosionFx = this.add.circle(explosionX, explosionY, 5, 0xffdd00, 0.9).setDepth(180);
+            const explosionFx = this.add.circle(explosionX, explosionY, 8, 0xffdd00, 0.9).setDepth(180);
             this.tweens.add({ targets: explosionFx, radius: ULTIMATE_EXPLOSION_RADIUS, alpha: 0, duration: 300, ease: 'Quad.easeOut', onComplete: () => explosionFx.destroy() });
             aliveEnemies.forEach(enemyInRadius => {
                 const distance = Phaser.Math.Distance.Between(explosionX, explosionY, enemyInRadius.x, enemyInRadius.y);
@@ -421,7 +420,7 @@ class GameScene extends Phaser.Scene {
                     if (enemyInRadius.hp <= 0) this.killEnemy(enemyInRadius);
                 }
             });
-            const fireZoneVisual = this.add.graphics({fillStyle: { color: 0xff6600, alpha: 0.3 }, lineStyle: { width: 2, color: 0xff0000, alpha: 0.7 } }).setDepth(5);
+            const fireZoneVisual = this.add.graphics({fillStyle: { color: 0xff6600, alpha: 0.3 }, lineStyle: { width: 3, color: 0xff0000, alpha: 0.7 } }).setDepth(5);
             fireZoneVisual.fillCircle(explosionX, explosionY, ULTIMATE_EXPLOSION_RADIUS).strokeCircle(explosionX, explosionY, ULTIMATE_EXPLOSION_RADIUS);
             const newZone = { x: explosionX, y: explosionY, radius: ULTIMATE_EXPLOSION_RADIUS, visual: fireZoneVisual, endTime: this.time.now + ULTIMATE_FIRE_ZONE_DURATION };
             this.fireZones.push(newZone);
@@ -462,7 +461,7 @@ class GameScene extends Phaser.Scene {
         for(let enemy of sameSegmentEnemies){
             const roundedDamage = Math.round(damage);
             enemy.hp -= roundedDamage; this.showDamageNumber(enemy.x, enemy.y, roundedDamage, '#ffff66');
-            const chainLine = this.add.line(0, 0, lastEnemy.x, lastEnemy.y, enemy.x, enemy.y, 0xffff66, 0.8).setLineWidth(3, 1);
+            const chainLine = this.add.line(0, 0, lastEnemy.x, lastEnemy.y, enemy.x, enemy.y, 0xffff66, 0.8).setLineWidth(4, 2); // <<< แก้ไขแล้ว!
             this.tweens.add({ targets: chainLine, alpha: 0, duration: 250, onComplete: () => chainLine.destroy() });
             if(enemy.hp <= 0) this.killEnemy(enemy);
             lastEnemy = enemy;
@@ -488,62 +487,61 @@ class UIScene extends Phaser.Scene {
     constructor(){ super({key: 'UIScene', active: true}); }
     create(){
         this.gameScene = this.scene.get('GameScene');
-        const fontStyle = { fontFamily: "'Poppins', Arial, sans-serif", fontSize: '24px', color: '#fff', fontStyle: '700' };
+        const fontStyle = { fontFamily: "'Poppins', Arial, sans-serif", fontSize: '32px', color: '#fff', fontStyle: '700' }; // <<< แก้ไขแล้ว!
         
         this.startOverlay = this.add.rectangle(WIDTH/2, HEIGHT/2, WIDTH, HEIGHT, 0x000000, 0.7).setInteractive();
-        this.startText = this.add.text(WIDTH/2, HEIGHT/2, 'TAP TO START', { ...fontStyle, fontSize: '42px' }).setOrigin(0.5);
+        this.startText = this.add.text(WIDTH/2, HEIGHT/2, 'TAP TO START', { ...fontStyle, fontSize: '56px' }).setOrigin(0.5); // <<< แก้ไขแล้ว!
         this.startOverlay.once('pointerdown', this.startGame, this);
         
         const summonBtnBg = this.add.graphics();
-        this.summonBtn = this.add.zone(WIDTH/2-100, HEIGHT-80, 200, 60).setOrigin(0).setInteractive();
-        this.summonText = this.add.text(WIDTH/2, HEIGHT-50, `SUMMON`, fontStyle).setOrigin(0.5);
+        this.summonBtn = this.add.zone(WIDTH/2-140, HEIGHT-110, 280, 80).setOrigin(0).setInteractive(); // <<< แก้ไขแล้ว!
+        this.summonText = this.add.text(WIDTH/2, HEIGHT-70, `SUMMON`, fontStyle).setOrigin(0.5); // <<< แก้ไขแล้ว!
         this.summonBtn.on('pointerdown', () => this.gameScene.doSummon());
         
-        // MODIFIED: Ultimate Button UI moved to the right
         this.ultimateBtnBg = this.add.graphics();
         this.ultimateCooldownIndicator = this.add.graphics();
-        const ultBtnX = WIDTH - 120; // 100 width + 20 margin
-        const ultTextX = WIDTH - 70; // Center of the button
-        this.ultimateBtn = this.add.zone(ultBtnX, HEIGHT - 80, 100, 60).setOrigin(0).setInteractive();
-        this.ultimateText = this.add.text(ultTextX, HEIGHT - 50, 'ULTIMATE', { ...fontStyle, fontSize: '18px' }).setOrigin(0.5);
+        const ultBtnX = WIDTH - 180; // <<< แก้ไขแล้ว!
+        const ultTextX = WIDTH - 110; // <<< แก้ไขแล้ว!
+        this.ultimateBtn = this.add.zone(ultBtnX, HEIGHT - 110, 150, 80).setOrigin(0).setInteractive(); // <<< แก้ไขแล้ว!
+        this.ultimateText = this.add.text(ultTextX, HEIGHT - 70, 'ULTIMATE', { ...fontStyle, fontSize: '24px' }).setOrigin(0.5); // <<< แก้ไขแล้ว!
         this.ultimateBtn.on('pointerdown', () => this.gameScene.castUltimate());
         
-        this.hpText = this.add.text(20, 20, `HP: 0`, fontStyle).setOrigin(0,0);
-        this.scoreText = this.add.text(WIDTH-20, 20, `Score: 0`, fontStyle).setOrigin(1,0);
-        this.manaText = this.add.text(20, 50, `Mana: 0`, fontStyle).setOrigin(0,0);
-        this.timerText = this.add.text(WIDTH/2, 20, 'Time: 30', fontStyle).setOrigin(0.5,0);
+        this.hpText = this.add.text(30, 30, `HP: 0`, fontStyle).setOrigin(0,0);
+        this.scoreText = this.add.text(WIDTH-30, 30, `Score: 0`, fontStyle).setOrigin(1,0);
+        this.manaText = this.add.text(30, 80, `Mana: 0`, fontStyle).setOrigin(0,0);
+        this.timerText = this.add.text(WIDTH/2, 30, 'Time: 30', fontStyle).setOrigin(0.5,0);
         
         this.createTowerLegend();
         
-        this.skipButton = this.add.text(WIDTH - 20, 50, 'Skip Ad', { fontSize: '16px', color: '#aaa' }).setOrigin(1,0).setInteractive().setVisible(false);
+        this.skipButton = this.add.text(WIDTH - 30, 80, 'Skip Ad', { fontSize: '22px', color: '#aaa' }).setOrigin(1,0).setInteractive().setVisible(false);
         this.skipButton.on('pointerdown', () => this.showCta(this.gameScene.score));
         
-        this.fpsText = this.add.text(10, HEIGHT - 40, '', { fontSize: '12px', color: '#0f0' });
-        this.deltaText = this.add.text(10, HEIGHT - 25, '', { fontSize: '12px', color: '#0f0' });
+        this.fpsText = this.add.text(15, HEIGHT - 50, '', { fontSize: '18px', color: '#0f0' });
+        this.deltaText = this.add.text(15, HEIGHT - 30, '', { fontSize: '18px', color: '#0f0' });
         
         this.inGameUI = [summonBtnBg, this.summonBtn, this.summonText, this.manaText, this.scoreText, this.hpText, this.timerText, this.fpsText, this.deltaText, this.ultimateBtnBg, this.ultimateCooldownIndicator, this.ultimateBtn, this.ultimateText];
         
         this.ctaOverlay = this.add.rectangle(WIDTH/2,HEIGHT/2,WIDTH,HEIGHT,0x000000,0.8).setVisible(false);
-        this.ctaScoreText = this.add.text(WIDTH/2,HEIGHT/2-50,'',{...fontStyle,fontSize:'32px'}).setOrigin(0.5).setVisible(false);
-        this.ctaText = this.add.text(WIDTH/2,HEIGHT/2+50,'PLAY NOW!',{...fontStyle,fontSize:'64px'}).setOrigin(0.5).setVisible(false);
-        this.retryButton = this.add.text(WIDTH/2, HEIGHT/2 + 120, 'Retry', {...fontStyle, fontSize: '24px', color: '#aaa'}).setOrigin(0.5).setInteractive().setVisible(false);
+        this.ctaScoreText = this.add.text(WIDTH/2,HEIGHT/2-80,'',{...fontStyle,fontSize:'48px'}).setOrigin(0.5).setVisible(false);
+        this.ctaText = this.add.text(WIDTH/2,HEIGHT/2+50,'PLAY NOW!',{...fontStyle,fontSize:'84px'}).setOrigin(0.5).setVisible(false);
+        this.retryButton = this.add.text(WIDTH/2, HEIGHT/2 + 180, 'Retry', {...fontStyle, fontSize: '36px', color: '#aaa'}).setOrigin(0.5).setInteractive().setVisible(false);
         this.ctaUI = [this.ctaOverlay, this.ctaScoreText, this.ctaText, this.retryButton];
         
         this.inGameUI.forEach(ui => ui.setVisible(false));
     }
 
-    createTowerLegend() {
-        const legendY = HEIGHT - 140;
-        this.add.text(WIDTH/2, legendY - 25, 'TOWER TYPES', { fontSize: '14px', color: '#fff', fontStyle: 'bold', fontFamily: "'Poppins', Arial, sans-serif" }).setOrigin(0.5);
+    createTowerLegend() { // <<< แก้ไขแล้ว!
+        const legendY = HEIGHT - 220;
+        this.add.text(WIDTH/2, legendY - 40, 'TOWER TYPES', { fontSize: '22px', color: '#fff', fontStyle: 'bold', fontFamily: "'Poppins', Arial, sans-serif" }).setOrigin(0.5);
         const types = ['fire', 'ice', 'lightning', 'poison', 'arrow', 'mana'];
-        const spacing = 72, startX = (WIDTH - (types.length - 1) * spacing) / 2;
+        const spacing = 96, startX = (WIDTH - (types.length - 1) * spacing) / 2;
         types.forEach((type, i) => {
             const x = startX + spacing * i;
-            this.add.rectangle(x, legendY, 18, 14, TOWER_CONFIG[type].color).setStrokeStyle(1, 0x333333);
+            this.add.rectangle(x, legendY, 28, 22, TOWER_CONFIG[type].color).setStrokeStyle(2, 0x333333);
             const name = (type === 'lightning') ? 'BOLT' : type.toUpperCase();
             const effect = {fire:'Burn',ice:'Slow',lightning:'Chain',poison:'DoT',arrow:'Crit',mana:'Bonus'}[type];
-            this.add.text(x, legendY + 12, name, {fontSize: '8px', color: '#fff', fontStyle: 'bold', fontFamily: "'Poppins', Arial, sans-serif"}).setOrigin(0.5);
-            this.add.text(x, legendY + 21, effect, {fontSize: '6px', color: '#aaa', fontFamily: "'Poppins', Arial, sans-serif"}).setOrigin(0.5);
+            this.add.text(x, legendY + 22, name, {fontSize: '14px', color: '#fff', fontStyle: 'bold', fontFamily: "'Poppins', Arial, sans-serif"}).setOrigin(0.5);
+            this.add.text(x, legendY + 40, effect, {fontSize: '12px', color: '#aaa', fontFamily: "'Poppins', Arial, sans-serif"}).setOrigin(0.5);
         });
     }
 
@@ -561,7 +559,7 @@ class UIScene extends Phaser.Scene {
         if (this.timeLeft <= 0) { this.timerEvent.remove(); this.timerText.setVisible(false); this.skipButton.setVisible(true); }
     }
     showUltimateText() {
-        const ultText = this.add.text(WIDTH/2, HEIGHT/2, 'ULTIMATE!', { fontSize: '64px', color: '#ffdd00', fontStyle: 'bold', stroke: '#ff6600', strokeThickness: 8, fontFamily: "'Poppins', Arial, sans-serif" }).setOrigin(0.5).setDepth(300).setScale(0.5);
+        const ultText = this.add.text(WIDTH/2, HEIGHT/2, 'ULTIMATE!', { fontSize: '92px', color: '#ffdd00', fontStyle: 'bold', stroke: '#ff6600', strokeThickness: 12, fontFamily: "'Poppins', Arial, sans-serif" }).setOrigin(0.5).setDepth(300).setScale(0.5);
         this.tweens.add({ targets: ultText, scale: 1.2, alpha: 0, duration: 1500, ease: 'Cubic.easeOut', onComplete: () => ultText.destroy() });
     }
     showCta(score){
@@ -582,20 +580,19 @@ class UIScene extends Phaser.Scene {
         const cost = this.gameScene.getCurrentSummonCost();
         this.summonText.setText(`SUMMON (${cost})`);
         const summonBtnBg = this.inGameUI[0];
-        summonBtnBg.clear().fillStyle(this.gameScene.mana >= cost ? 0x1f8fff : 0x666666, 1).fillRoundedRect(WIDTH/2 - 100, HEIGHT - 80, 200, 60, 15);
+        summonBtnBg.clear().fillStyle(this.gameScene.mana >= cost ? 0x1f8fff : 0x666666, 1).fillRoundedRect(WIDTH/2 - 140, HEIGHT - 110, 280, 80, 20); // <<< แก้ไขแล้ว!
         
-        // MODIFIED: Ultimate Button UI Update logic to draw on the right
         const timeSinceUltimate = this.game.getTime() - this.gameScene.lastUltimateTime;
-        const ultBtnX = WIDTH - 120;
-        const ultTextX = WIDTH - 70;
+        const ultBtnX = WIDTH - 180;
+        const ultTextX = WIDTH - 105;
         if (timeSinceUltimate < ULTIMATE_COOLDOWN) {
             this.ultimateText.setText(`${Math.ceil((ULTIMATE_COOLDOWN - timeSinceUltimate) / 1000)}s`);
-            this.ultimateBtnBg.clear().fillStyle(0x666666, 1).fillRoundedRect(ultBtnX, HEIGHT - 80, 100, 60, 15);
+            this.ultimateBtnBg.clear().fillStyle(0x666666, 1).fillRoundedRect(ultBtnX, HEIGHT - 110, 150, 80, 20); // <<< แก้ไขแล้ว!
             const progress = timeSinceUltimate / ULTIMATE_COOLDOWN;
-            this.ultimateCooldownIndicator.clear().lineStyle(4, 0x1f8fff, 1).beginPath().arc(ultTextX, HEIGHT - 50, 35, Phaser.Math.DegToRad(-90), Phaser.Math.DegToRad(-90 + 360 * progress), false).strokePath();
+            this.ultimateCooldownIndicator.clear().lineStyle(6, 0x1f8fff, 1).beginPath().arc(ultTextX, HEIGHT - 70, 45, Phaser.Math.DegToRad(-90), Phaser.Math.DegToRad(-90 + 360 * progress), false).strokePath();
         } else {
             this.ultimateText.setText('ULTIMATE');
-            this.ultimateBtnBg.clear().fillStyle(0xff4444, 1).fillRoundedRect(ultBtnX, HEIGHT - 80, 100, 60, 15);
+            this.ultimateBtnBg.clear().fillStyle(0xff4444, 1).fillRoundedRect(ultBtnX, HEIGHT - 110, 150, 80, 20); // <<< แก้ไขแล้ว!
             this.ultimateCooldownIndicator.clear();
         }
 
@@ -613,9 +610,13 @@ const config = {
     parent: 'game',
     backgroundColor: '#000011',
     
-    // --- พระเอกรอบนี้อยู่นี่! ---
-    antialias: true, // เปิดโหมดลบรอยหยัก ทำให้ขอบทุกอย่างสมูท
-    resolution: Math.min(window.devicePixelRatio || 1, 2), // ทีเด็ด! สั่งให้เกมเรนเดอร์ด้วยความละเอียดสูงขึ้นตามจอของผู้เล่น แต่ไม่เกิน 2 เท่า
+    // <<< แก้ไขแล้ว! การตั้งค่าเพื่อความคมชัดสูงสุด
+    render: {
+        antialias: true,
+        pixelArt: false, // ใช้ false เพื่อให้ภาพสมูท ไม่เป็น pixel art
+        roundPixels: true
+    },
+    resolution: window.devicePixelRatio || 1, // ใช้ค่า resolution ของจอจริง
     
     physics: {
         default: 'arcade',
