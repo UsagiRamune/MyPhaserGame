@@ -6,7 +6,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const observerOptions = {
         root: null,
         rootMargin: '0px',
-        threshold: 0.2 // Trigger when 20% of the element is visible
+        threshold: 0.2
     };
 
     const observer = new IntersectionObserver((entries, observer) => {
@@ -14,7 +14,6 @@ document.addEventListener('DOMContentLoaded', () => {
             if (entry.isIntersecting) {
                 entry.target.classList.add('visible');
             } else {
-                 // To re-trigger animation when scrolling up and down again
                  entry.target.classList.remove('visible');
             }
         });
@@ -51,7 +50,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
     
-    // Listen for fullscreen change events to toggle buttons and class
     document.addEventListener('fullscreenchange', () => {
         if (!document.fullscreenElement) {
             gameContainer.classList.remove('fullscreen');
@@ -62,5 +60,19 @@ document.addEventListener('DOMContentLoaded', () => {
             exitFullscreenBtn.classList.remove('d-none');
         }
     });
+
+    // --- เพิ่มเข้ามา! Logic สำหรับ Click to Play ---
+    const playOverlay = document.getElementById('play-overlay');
+    const gameIframe = document.querySelector('#game-container iframe');
+
+    playOverlay.addEventListener('click', () => {
+        // เช็คก่อนว่ายังไม่ได้โหลดเกม แล้วค่อยสั่งโหลด
+        if (gameIframe.src !== gameIframe.dataset.src) {
+            gameIframe.src = gameIframe.dataset.src;
+        }
+
+        // ซ่อน overlay หลังจากกด
+        playOverlay.classList.add('hidden');
+    }, { once: true }); // ให้ Event นี้ทำงานแค่ครั้งเดียวพอ
 
 });
