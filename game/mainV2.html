@@ -2,7 +2,7 @@
 <html>
 <head>
     <meta charset="utf-8" />
-    <title>Playable Ad - Merge TD (V6 - Animated CTA)</title>
+    <title>Playable Ad - Merge TD (V9 - UI Reverted & Bugs Fixed)</title>
     <script src="https://cdn.jsdelivr.net/npm/phaser@3/dist/phaser.js"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -83,7 +83,7 @@ class InstrumentationManager {
         this.beaconSent = true; this.calculateMetrics();
         const dataString = JSON.stringify(this.data);
         console.log("Sending Analytics Data:", dataString);
-        // --- FIX: Commented out to prevent console errors during local development ---
+        // --- BUG FIX: Commented out to prevent console errors during local development ---
         /*
         if (navigator.sendBeacon) {
             navigator.sendBeacon(BEACON_ENDPOINT, dataString);
@@ -197,7 +197,7 @@ class GameScene extends Phaser.Scene {
         this.powerUpActive = false; this.bossSpawned = false; this.boss = null;
         this.difficultyLevel = 0; this.isGameOver = false; this.waitingForAllEnemiesToDie = false;
         this.ultimateReady = true; this.lastUltimateTime = -ULTIMATE_COOLDOWN; this.fireZones = [];
-        this.gameStarted = false; this.firstMergeDone = false;
+        this.gameStarted = false; this.firstRewardTriggered = false;
         this.add.rectangle(WIDTH/2, HEIGHT/2, WIDTH, HEIGHT, 0x16202a);
         this.setupGrid(); this.setupPath();
         this.towers = []; this.enemies = this.add.group();
@@ -272,6 +272,11 @@ class GameScene extends Phaser.Scene {
         this.tweens.add({ targets: targetsToFade, alpha: 0, scale: 0.5, duration: 200,
             onComplete: () => { if (enemy) { if (enemy.hpText) enemy.hpText.destroy(); enemy.destroy(); } }
         });
+
+        if (!this.firstRewardTriggered) {
+             this.scene.get('UIScene').triggerFirstReward("FIRST BLOOD!");
+        }
+
         if (this.score >= 150 && !this.bossSpawned) this.spawnBoss();
         if (enemy === this.boss) { this.waitingForAllEnemiesToDie = true; }
     }
@@ -393,10 +398,9 @@ class GameScene extends Phaser.Scene {
         this.placeTowerAtCell(tr,tc,newType,newLevel);
         const fx=this.add.circle(GRID_X+tc*CELL_SIZE+CELL_SIZE/2, GRID_Y+tr*CELL_SIZE+CELL_SIZE/2, 40, 0xffffff, 0.8);
         this.tweens.add({targets:fx,scale:2.5,alpha:0,duration:300, onComplete:()=>fx.destroy()});
-        if (!this.firstMergeDone) {
-            this.firstMergeDone = true; const uiScene = this.scene.get('UIScene');
-            uiScene.instrumentation.recordFirstReward();
-            uiScene.showStickyCTA();
+
+        if (!this.firstRewardTriggered) {
+            this.scene.get('UIScene').triggerFirstReward("AWESOME MERGE!");
         }
     }
     returnTowerToOriginalPosition(t){ t.sprite.x=t.x; t.sprite.y=t.y; t.label.x=t.x; t.label.y=t.y+(CELL_SIZE/2)-24; }
@@ -462,6 +466,9 @@ class GameScene extends Phaser.Scene {
         }
     }
     towerAttack(tower,enemy){
+        const flash = this.add.circle(tower.x, tower.y, CELL_SIZE/2, 0xffffff, 0.7).setDepth(5);
+        this.tweens.add({ targets: flash, scale: 1.5, alpha: 0, duration: 150, onComplete: () => flash.destroy() });
+
         const projectile = this.projectilePool.get(tower.x, tower.y); if (!projectile) return;
         projectile.setActive(true).setVisible(true).setTint(TOWER_CONFIG[tower.type].color);
         this.tweens.add({ targets: projectile, x: enemy.x, y: enemy.y, duration: 200,
@@ -589,38 +596,39 @@ class UIScene extends Phaser.Scene {
         this.manaText = this.add.text(30, 80, `Mana: 0`, this.fontStyle).setOrigin(0,0);
         this.timerText = this.add.text(WIDTH/2, 30, 'Time: 15', this.fontStyle).setOrigin(0.5,0);
         this.createTowerLegend();
+
+        // --- REVERT: Skip button position reverted to original ---
         this.skipButton = this.add.text(WIDTH - 95, 105, 'Skip Ad', { ...this.fontStyle, fontSize: '22px', color: '#fff' }).setOrigin(0.5).setVisible(false).disableInteractive();
-        this.skipButtonBg = this.add.graphics().setVisible(false);
+        this.skipButtonBg = this.add.graphics().setVisible(false); // This was in the original, re-adding for completeness
         this.skipButton.on('pointerdown', () => this.gameScene.loseGame());
+
         this.inGameUI = [summonBtnBg, this.summonBtn, this.summonText, this.manaText, this.scoreText, this.hpText, this.timerText, this.ultimateBtnBg, this.ultimateCooldownIndicator, this.ultimateBtn, this.ultimateText, this.skipButton, this.skipButtonBg];
-        
+
         this.createVictoryCta();
         this.createTimesUpCta();
         this.createStickyCTA();
         this.inGameUI.forEach(ui => { if(ui) ui.setVisible(false); });
     }
-    
+
+    // --- REVERT: Sticky CTA creation reverted to original ---
     createStickyCTA() {
-        // --- FIX: Repositioned to the right and added animation ---
         const ctaWidth = 200;
         const ctaHeight = 60;
         const ctaX = WIDTH - (ctaWidth / 2) - 150; // Position on the right with padding
-        const ctaY = 130; 
+        const ctaY = 130;
 
         const ctaBg = this.add.graphics();
         ctaBg.fillStyle(0x1a73e8, 1).fillRoundedRect(0, 0, ctaWidth, ctaHeight, 15);
         const ctaText = this.add.text(ctaWidth / 2, ctaHeight / 2, 'PLAY NOW!', {...this.fontStyle, fontSize:'32px'}).setOrigin(0.5);
         const ctaZone = this.add.zone(0, 0, ctaWidth, ctaHeight).setOrigin(0).setInteractive();
-        
-        // Use a container to group and animate all parts together
+
         this.stickyCtaContainer = this.add.container(ctaX, ctaY, [ctaBg, ctaText, ctaZone]);
         this.stickyCtaContainer.setSize(ctaWidth, ctaHeight);
         this.stickyCtaContainer.setDepth(3000);
         this.stickyCtaContainer.setVisible(false);
 
         ctaZone.on('pointerdown', this.onCTAClick, this);
-        
-        // Add tween animation
+
         this.tweens.add({
             targets: this.stickyCtaContainer,
             scaleX: 1.05,
@@ -632,7 +640,51 @@ class UIScene extends Phaser.Scene {
             repeat: -1
         });
     }
-    
+
+    triggerFirstReward(message = "AWESOME!") {
+        if (this.gameScene.firstRewardTriggered) return;
+        this.gameScene.firstRewardTriggered = true;
+        this.instrumentation.recordFirstReward();
+
+        const rewardText = this.add.text(WIDTH/2, HEIGHT/2, message, {
+            ...this.fontStyle,
+            fontSize: '84px',
+            color: '#ffdd00',
+            stroke: '#000',
+            strokeThickness: 8
+        }).setOrigin(0.5).setDepth(5000).setScale(0);
+
+        this.tweens.add({
+            targets: rewardText,
+            scale: 1.2,
+            duration: 400,
+            ease: 'Back.easeOut',
+            onComplete: () => {
+                this.tweens.add({
+                    targets: rewardText,
+                    scale: 1.0,
+                    duration: 200,
+                    ease: 'Sine.easeInOut',
+                    onComplete: () => {
+                        this.time.delayedCall(800, () => {
+                            this.tweens.add({
+                                targets: rewardText,
+                                scale: 0,
+                                alpha: 0,
+                                duration: 300,
+                                ease: 'Back.easeIn',
+                                onComplete: () => {
+                                    rewardText.destroy();
+                                    this.showStickyCTA();
+                                }
+                            });
+                        });
+                    }
+                });
+            }
+        });
+    }
+
     showStickyCTA() {
         if (this.stickyCtaContainer.visible) return;
         this.instrumentation.recordCTAShown();
@@ -649,7 +701,7 @@ class UIScene extends Phaser.Scene {
         }
         this.instrumentation.send();
     }
-    
+
     createVictoryCta() {
         this.victoryCtaGroup = this.add.group();
         const overlay = this.add.rectangle(WIDTH/2,HEIGHT/2,WIDTH,HEIGHT,0x000000,0.8);
@@ -661,6 +713,7 @@ class UIScene extends Phaser.Scene {
         const ctaZone = this.add.zone(WIDTH/2 - 150, HEIGHT/2 + 60, 300, 80).setOrigin(0).setInteractive();
         const retryButton = this.add.text(WIDTH/2, HEIGHT/2 + 220, 'Retry', {...this.fontStyle, fontSize: '36px', color: '#aaa'}).setOrigin(0.5).setInteractive();
         this.victoryCtaGroup.addMultiple([overlay, this.victoryTitleText, this.victoryScoreText, ctaButtonBg, ctaText, ctaZone, retryButton]);
+        this.victoryCtaGroup.getChildren().forEach(c => c.setDepth(5000));
         this.victoryCtaGroup.setVisible(false);
         ctaZone.on('pointerdown', this.onCTAClick, this);
         retryButton.once('pointerdown', () => { this.scene.start('GameScene'); this.scene.restart(); });
@@ -677,11 +730,11 @@ class UIScene extends Phaser.Scene {
         const ctaZone = this.add.zone(WIDTH/2 - 150, HEIGHT/2 + 60, 300, 80).setOrigin(0).setInteractive();
         const resumeButton = this.add.text(WIDTH/2, HEIGHT/2 + 220, 'RESUME', {...this.fontStyle, fontSize: '48px', color: '#66ff66'}).setOrigin(0.5).setInteractive();
         this.timesUpCtaGroup.addMultiple([overlay, title, this.timesUpScoreText, ctaButtonBg, ctaText, ctaZone, resumeButton]);
+        this.timesUpCtaGroup.getChildren().forEach(c => c.setDepth(5000));
         this.timesUpCtaGroup.setVisible(false);
         ctaZone.on('pointerdown', this.onCTAClick, this);
         resumeButton.on('pointerdown', () => {
             this.timesUpCtaGroup.setVisible(false);
-            // --- FIX: Show sticky CTA again if it was visible before ---
             if (this.wasStickyCtaVisible) {
                  this.stickyCtaContainer.setVisible(true);
             }
@@ -706,6 +759,10 @@ class UIScene extends Phaser.Scene {
         this.towerLegendGroup.add(title); this.towerLegendGroup.setVisible(false);
     }
     startGame(){
+        // --- BUG FIX: Resume audio context on the first user gesture ---
+        if (this.sound.context.state === 'suspended') {
+            this.sound.context.resume();
+        }
         this.instrumentation.recordFirstTap();
         this.startOverlay.setVisible(false); this.startText.setVisible(false);
         this.inGameUI.forEach(ui => { if(ui) ui.setVisible(true); });
@@ -716,12 +773,14 @@ class UIScene extends Phaser.Scene {
     }
     updateTimer(){
         if(this.gameScene.isGameOver) { if(this.timerEvent) this.timerEvent.remove(); return; }
-        if(this.timeLeft < 0) return;
-        this.timeLeft--; this.timerText.setText(`Time: ${this.timeLeft + 1}`);
-        if (this.timeLeft <= -1) {
+        this.timeLeft--;
+        this.timerText.setText(`Time: ${this.timeLeft}`);
+        if (this.timeLeft <= 0) {
             if(this.timerEvent) this.timerEvent.remove();
-            this.timerText.setVisible(false); this.showTimesUpCta(this.gameScene.score);
-            this.skipButton.setVisible(true).setInteractive(); this.skipButtonBg.setVisible(true);
+            this.timerText.setVisible(false);
+            this.showTimesUpCta(this.gameScene.score);
+            this.skipButton.setVisible(true).setInteractive();
+            this.skipButtonBg.setVisible(true);
         }
     }
     showUltimateText() {
@@ -733,15 +792,14 @@ class UIScene extends Phaser.Scene {
         this.gameScene.freezeGame();
         this.inGameUI.forEach(ui => { if(ui) ui.setVisible(false); });
         this.towerLegendGroup.setVisible(false);
-        this.stickyCtaContainer.setVisible(false); // Hide sticky CTA
+        this.stickyCtaContainer.setVisible(false);
         this.victoryCtaGroup.setVisible(true);
         this.victoryTitleText.setText(title);
         this.victoryScoreText.setText(`Final Score: ${score}`);
     }
-    
+
     showTimesUpCta(score) {
-        this.gameScene.freezeGame(); 
-        // --- FIX: Hide sticky CTA and remember its state ---
+        this.gameScene.freezeGame();
         this.wasStickyCtaVisible = this.stickyCtaContainer.visible;
         this.stickyCtaContainer.setVisible(false);
         this.timesUpCtaGroup.setVisible(true);
@@ -754,12 +812,12 @@ class UIScene extends Phaser.Scene {
         this.manaText.setText(`Mana: ${Math.floor(this.gameScene.mana)}`);
         this.hpText.setText(`HP: ${this.gameScene.playerHP}`);
         this.scoreText.setText(`Score: ${this.gameScene.score}`);
-        
+
         const cost = this.gameScene.getCurrentSummonCost();
         this.summonText.setText(`SUMMON (${cost})`);
         const summonBtnBg = this.inGameUI[0];
         summonBtnBg.clear().fillStyle(this.gameScene.mana >= cost ? 0x1f8fff : 0x666666, 1).fillRoundedRect(WIDTH/2 - 140, HEIGHT - 110, 280, 80, 20);
-        
+
         const timeSinceUltimate = this.game.getTime() - this.gameScene.lastUltimateTime;
         const ultBtnX = WIDTH - 180, ultTextX = WIDTH - 105;
         if (timeSinceUltimate < ULTIMATE_COOLDOWN) {
