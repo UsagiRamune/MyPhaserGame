@@ -10,10 +10,51 @@
     <style>
         body { margin:0; background:#000; font-family: 'Poppins', Arial, sans-serif; }
         #game { margin:0 auto; display:block; }
+
+        #score-form-container {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background-color: rgba(0, 0, 0, 0.85);
+            padding: 25px;
+            border-radius: 15px;
+            border: 2px solid #fff;
+            z-index: 10000;
+            display: none; /* ซ่อนไว้ก่อน */
+            text-align: center;
+            color: white;
+        }
+        #score-form-container input {
+            padding: 10px;
+            border-radius: 5px;
+            border: 1px solid #ccc;
+            margin: 15px 0;
+            width: 80%;
+            font-family: 'Poppins', sans-serif;
+        }
+        #score-form-container button {
+            padding: 10px 20px;
+            border-radius: 5px;
+            border: none;
+            background-color: #1a73e8;
+            color: white;
+            font-weight: bold;
+            cursor: pointer;
+        }
     </style>
 </head>
 <body>
     <div id="game"></div>
+
+    <div id="score-form-container">
+        <h2 id="form-title">VICTORY!</h2>
+        <p>Final Score: <span id="final-score">0</span></p>
+        <form id="submit-score-form">
+            <input type="text" id="player-name" placeholder="Enter Your Name" maxlength="15" required>
+            <button type="submit">Submit Score</button>
+        </form>
+    </div>
 
 <script>
 /* =========================
@@ -787,15 +828,46 @@ class UIScene extends Phaser.Scene {
         const ultText = this.add.text(WIDTH/2, HEIGHT/2, 'ULTIMATE!', { fontSize: '92px', color: '#ffdd00', fontStyle: 'bold', stroke: '#ff6600', strokeThickness: 12 }).setOrigin(0.5).setDepth(300).setScale(0.5);
         this.tweens.add({ targets: ultText, scale: 1.2, alpha: 0, duration: 1500, ease: 'Cubic.easeOut', onComplete: () => ultText.destroy() });
     }
-    showVictoryCta(score, title){
+    showVictoryCta(score, title) {
         if (this.timerEvent) this.timerEvent.remove();
         this.gameScene.freezeGame();
-        this.inGameUI.forEach(ui => { if(ui) ui.setVisible(false); });
+        
+        // ซ่อน UI ในเกมทั้งหมด
+        this.inGameUI.forEach(ui => { if (ui) ui.setVisible(false); });
         this.towerLegendGroup.setVisible(false);
         this.stickyCtaContainer.setVisible(false);
-        this.victoryCtaGroup.setVisible(true);
-        this.victoryTitleText.setText(title);
-        this.victoryScoreText.setText(`Final Score: ${score}`);
+        
+        // --- ส่วนที่แก้ไข ---
+        // แทนที่จะแสดง group ของ Phaser, เราจะแสดงฟอร์ม HTML
+        const formContainer = document.getElementById('score-form-container');
+        document.getElementById('form-title').innerText = title;
+        document.getElementById('final-score').innerText = score;
+        formContainer.style.display = 'block';
+
+        const form = document.getElementById('submit-score-form');
+        
+        // ใช้ .onclick เพื่อให้แน่ใจว่า event listener ไม่ถูกเพิ่มซ้ำซ้อน
+        form.onsubmit = (e) => {
+            e.preventDefault();
+            const playerNameInput = document.getElementById('player-name');
+            const playerName = playerNameInput.value.trim();
+
+            if (playerName) {
+                // ส่งข้อมูลไปยังหน้าต่างแม่ (index.html)
+                const scoreData = {
+                    type: 'submitScore',
+                    name: playerName,
+                    score: score
+                };
+                window.parent.postMessage(scoreData, '*'); // ใช้ '*' สำหรับ development เท่านั้น
+
+                // ซ่อนฟอร์มและแสดง CTA หลัก
+                formContainer.style.display = 'none';
+                this.victoryCtaGroup.setVisible(true);
+                this.victoryTitleText.setText(title);
+                this.victoryScoreText.setText(`Final Score: ${score}`);
+            }
+        };
     }
 
     showTimesUpCta(score) {
