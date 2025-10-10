@@ -606,10 +606,46 @@ class UIScene extends Phaser.Scene {
     }
 
     showGameOver(score){
+        if (this.timerEvent) this.timerEvent.remove();
         this.gameScene.freezeGame();
-        this.inGameUI.forEach(ui => { if(ui) ui.setVisible(false); });
-        this.gameOverGroup.setVisible(true);
-        this.gameOverScoreText.setText(`Final Score: ${score}`);
+        
+        // ซ่อน UI ในเกมทั้งหมด
+        this.inGameUI.forEach(ui => { if (ui) ui.setVisible(false); });
+        this.towerLegendGroup.setVisible(false);
+        this.stickyCtaContainer.setVisible(false);
+        
+        // --- ส่วนที่แก้ไข ---
+        // แทนที่จะแสดง group ของ Phaser, เราจะแสดงฟอร์ม HTML
+        const formContainer = document.getElementById('score-form-container');
+        document.getElementById('form-title').innerText = title;
+        document.getElementById('final-score').innerText = score;
+        formContainer.style.display = 'block';
+
+        const form = document.getElementById('submit-score-form');
+        
+        // ใช้ .onclick เพื่อให้แน่ใจว่า event listener ไม่ถูกเพิ่มซ้ำซ้อน
+        form.onsubmit = (e) => {
+            e.preventDefault();
+            const playerNameInput = document.getElementById('player-name');
+            const playerName = playerNameInput.value.trim();
+
+            if (playerName) {
+                // ส่งข้อมูลไปยังหน้าต่างแม่ (index.html)
+                const scoreData = {
+                    type: 'submitScore',
+                    name: playerName,
+                    score: score
+                };
+                window.parent.postMessage(scoreData, '*'); // ใช้ '*' สำหรับ development เท่านั้น
+
+                // ซ่อนฟอร์มและแสดง CTA หลัก
+                formContainer.style.display = 'none';
+                this.victoryCtaGroup.setVisible(true);
+                this.victoryTitleText.setText(title);
+                this.victoryScoreText.setText(`Final Score: ${score}`);
+            }
+        };
+
     }
 
     update(time, delta){
