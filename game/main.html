@@ -535,52 +535,68 @@ class GameScene extends Phaser.Scene {
    ========================= */
 class UIScene extends Phaser.Scene {
     constructor(){ super({key: 'UIScene', active: true}); }
+
     create(){
         this.gameScene = this.scene.get('GameScene');
         this.fontStyle = { fontFamily: "'Poppins', Arial, sans-serif", fontSize: '32px', color: '#fff', fontStyle: '700' };
 
+        // --- UI พื้นฐานในเกม (เหมือนเดิม) ---
         const summonBtnBg = this.add.graphics();
         this.summonBtn = this.add.zone(WIDTH/2-140, HEIGHT-110, 280, 80).setOrigin(0).setInteractive();
         this.summonText = this.add.text(WIDTH/2, HEIGHT-70, `SUMMON`, this.fontStyle).setOrigin(0.5);
         this.summonBtn.on('pointerdown', () => this.gameScene.doSummon());
-
         this.ultimateBtnBg = this.add.graphics();
         this.ultimateCooldownIndicator = this.add.graphics();
         const ultBtnX = WIDTH - 180, ultTextX = WIDTH - 105;
         this.ultimateBtn = this.add.zone(ultBtnX, HEIGHT - 110, 150, 80).setOrigin(0).setInteractive();
         this.ultimateText = this.add.text(ultTextX, HEIGHT - 70, 'ULTIMATE', { ...this.fontStyle, fontSize: '24px' }).setOrigin(0.5);
         this.ultimateBtn.on('pointerdown', () => this.gameScene.castUltimate());
-
         this.hpText = this.add.text(30, 30, `HP: 0`, this.fontStyle).setOrigin(0,0);
         this.scoreText = this.add.text(WIDTH-30, 30, `Score: 0`, this.fontStyle).setOrigin(1,0);
         this.manaText = this.add.text(30, 80, `Mana: 0`, this.fontStyle).setOrigin(0,0);
         this.bossTimerText = this.add.text(WIDTH/2, 30, '', { ...this.fontStyle, fontSize: '28px' }).setOrigin(0.5,0);
-
         this.createTowerLegend();
-
-        this.inGameUI = [summonBtnBg, this.summonBtn, this.summonText, this.manaText, this.scoreText, this.hpText, this.bossTimerText, this.ultimateBtnBg, this.ultimateCooldownIndicator, this.ultimateBtn, this.ultimateText, ...this.towerLegendGroup.getChildren()];
-
+        this.inGameUI = [summonBtnBg, this.summonBtn, this.summonText, this.manaText, this.scoreText, this.hpText, this.bossTimerText, this.ultimateBtnBg, this.ultimateCooldownIndicator, this.ultimateBtn, this.ultimateText, this.towerLegendGroup];
+        
+        // --- สร้าง UI ตอนจบเกม ---
         this.createGameOverCta();
-    }
 
-    createGameOverCta() {
-        this.gameOverGroup = this.add.group();
-        const overlay = this.add.rectangle(WIDTH/2,HEIGHT/2,WIDTH,HEIGHT,0x000000,0.8);
-        const titleText = this.add.text(WIDTH/2, HEIGHT/2 - 120, 'GAME OVER', {...this.fontStyle, fontSize:'84px', color: '#ff4444'}).setOrigin(0.5);
-        this.gameOverScoreText = this.add.text(WIDTH/2, HEIGHT/2 - 20, '', {...this.fontStyle, fontSize:'48px'}).setOrigin(0.5);
+        // --- ✅ จุดที่แก้ไข ---
+        // 1. ย้าย HTML และ CSS ของฟอร์มมาเก็บในตัวแปร string ตรงนี้เลย
+        const formHTML = `
+            <style>
+                #score-form-container-ingame {
+                    width: 400px; padding: 2rem; background-color: #161b22;
+                    border-radius: 15px; border: 2px solid #30363d;
+                    box-shadow: 0 5px 20px rgba(0,0,0,0.5); text-align: center;
+                    font-family: 'Poppins', sans-serif;
+                }
+                #score-form-container-ingame input {
+                    width: 100%; padding: 0.75rem; margin-top: 1rem; margin-bottom: 1.5rem;
+                    border-radius: 8px; border: 1px solid #444; background-color: #0d1117;
+                    color: white; font-size: 1.2rem;
+                }
+                #score-form-container-ingame button {
+                    width: 100%; padding: 0.75rem; border: none; border-radius: 8px;
+                    background-color: #1f8fff; color: white; font-size: 1.2rem;
+                    font-weight: bold; cursor: pointer; transition: background-color 0.2s;
+                }
+                #score-form-container-ingame button:hover { background-color: #3c9cff; }
+            </style>
+            <div id="score-form-container-ingame">
+                <h3 id="form-title" style="color: white; font-weight: bold;">SUBMIT YOUR SCORE</h3>
+                <p style="color: #aaa;">Your Score: <span id="final-score" style="color: #ffc107;">0</span></p>
+                <form id="submit-score-form">
+                    <input type="text" id="player-name" placeholder="Enter Your Name..." required maxlength="15">
+                    <button type="submit">SUBMIT</button>
+                </form>
+            </div>
+        `;
 
-        const retryButton = this.add.text(WIDTH/2, HEIGHT/2 + 100, 'RETRY', {...this.fontStyle, fontSize: '48px', color: '#66ff66'}).setOrigin(0.5).setInteractive();
-
-        this.gameOverGroup.addMultiple([overlay, titleText, this.gameOverScoreText, retryButton]);
-        this.gameOverGroup.getChildren().forEach(c => c.setDepth(5000));
-        this.gameOverGroup.setVisible(false);
-
-        // BUG FIX: Use a more robust scene restart method
-        retryButton.on('pointerdown', () => {
-            this.scene.stop('GameScene');
-            this.scene.start('GameScene');
-            this.scene.restart();
-        });
+        // 2. ใช้ createFromHTML เพื่อสร้างฟอร์มจาก string ด้านบน (ชัวร์กว่าเยอะ)
+        this.formElement = this.add.dom(WIDTH / 2, HEIGHT / 2 + 50).createFromHTML(formHTML);
+        this.formElement.setVisible(false);
+        this.formElement.setDepth(6000);
     }
 
     createTowerLegend() {
@@ -599,62 +615,58 @@ class UIScene extends Phaser.Scene {
         });
         this.towerLegendGroup.add(title);
     }
+    
+    createGameOverCta() {
+        this.gameOverGroup = this.add.group();
+        const overlay = this.add.rectangle(WIDTH/2,HEIGHT/2,WIDTH,HEIGHT,0x000000,0.8);
+        const titleText = this.add.text(WIDTH/2, HEIGHT/2 - 220, 'GAME OVER', {...this.fontStyle, fontSize:'84px', color: '#ff4444'}).setOrigin(0.5);
+        const retryButton = this.add.text(WIDTH/2, HEIGHT/2 + 250, 'RETRY', {...this.fontStyle, fontSize: '48px', color: '#66ff66'}).setOrigin(0.5).setInteractive();
+        this.gameOverGroup.addMultiple([overlay, titleText, retryButton]);
+        this.gameOverGroup.getChildren().forEach(c => c.setDepth(5000));
+        this.gameOverGroup.setVisible(false);
 
+        retryButton.on('pointerdown', () => {
+            this.scene.stop('GameScene');
+            this.scene.start('GameScene');
+            this.scene.restart();
+        });
+    }
+
+    // --- ฟังก์ชัน `showGameOver` (ตอนนี้จะทำงานถูกต้องแล้ว) ---
+    showGameOver(score){
+        this.gameScene.freezeGame();
+        this.inGameUI.forEach(ui => { if (ui) ui.setVisible(false); });
+        this.gameOverGroup.setVisible(true);
+        this.formElement.setVisible(true);
+
+        // ตอนนี้ `this.formElement` มีอยู่จริงแน่นอน `getChildByID` จะทำงานได้
+        const finalScoreEl = this.formElement.getChildByID('final-score');
+        finalScoreEl.innerText = score;
+
+        const form = this.formElement.getChildByID('submit-score-form');
+        form.addEventListener('submit', (e) => {
+            e.preventDefault();
+            const playerNameInput = this.formElement.getChildByID('player-name');
+            const playerName = playerNameInput.value.trim();
+            if (playerName) {
+                const scoreData = { type: 'submitScore', name: playerName, score: score };
+                window.parent.postMessage(scoreData, '*');
+                this.formElement.setVisible(false);
+                this.add.text(WIDTH/2, HEIGHT/2, 'SCORE SUBMITTED!', {...this.fontStyle, fontSize:'48px', color: '#1f8fff'}).setOrigin(0.5).setDepth(6001);
+            }
+        });
+    }
+    
     showUltimateText() {
         const ultText = this.add.text(WIDTH/2, HEIGHT/2, 'ULTIMATE!', { fontSize: '92px', color: '#ffdd00', fontStyle: 'bold', stroke: '#ff6600', strokeThickness: 12 }).setOrigin(0.5).setDepth(300).setScale(0.5);
         this.tweens.add({ targets: ultText, scale: 1.2, alpha: 0, duration: 1500, ease: 'Cubic.easeOut', onComplete: () => ultText.destroy() });
     }
 
-    showGameOver(score){
-        if (this.timerEvent) this.timerEvent.remove();
-        this.gameScene.freezeGame();
-        
-        // ซ่อน UI ในเกมทั้งหมด
-        this.inGameUI.forEach(ui => { if (ui) ui.setVisible(false); });
-        this.towerLegendGroup.setVisible(false);
-        this.stickyCtaContainer.setVisible(false);
-        
-        // --- ส่วนที่แก้ไข ---
-        // แทนที่จะแสดง group ของ Phaser, เราจะแสดงฟอร์ม HTML
-        const formContainer = document.getElementById('score-form-container');
-        document.getElementById('form-title').innerText = title;
-        document.getElementById('final-score').innerText = score;
-        formContainer.style.display = 'block';
-
-        const form = document.getElementById('submit-score-form');
-        
-        // ใช้ .onclick เพื่อให้แน่ใจว่า event listener ไม่ถูกเพิ่มซ้ำซ้อน
-        form.onsubmit = (e) => {
-            e.preventDefault();
-            const playerNameInput = document.getElementById('player-name');
-            const playerName = playerNameInput.value.trim();
-
-            if (playerName) {
-                // ส่งข้อมูลไปยังหน้าต่างแม่ (index.html)
-                const scoreData = {
-                    type: 'submitScore',
-                    name: playerName,
-                    score: score
-                };
-                window.parent.postMessage(scoreData, '*'); // ใช้ '*' สำหรับ development เท่านั้น
-
-                // ซ่อนฟอร์มและแสดง CTA หลัก
-                formContainer.style.display = 'none';
-                this.victoryCtaGroup.setVisible(true);
-                this.victoryTitleText.setText(title);
-                this.victoryScoreText.setText(`Final Score: ${score}`);
-            }
-        };
-
-    }
-
     update(time, delta){
         if(!this.gameScene.sys.isActive() || this.gameScene.isGameOver) return;
-
         this.manaText.setText(`Mana: ${Math.floor(this.gameScene.mana)}`);
         this.hpText.setText(`HP: ${this.gameScene.playerHP}`);
         this.scoreText.setText(`Score: ${this.gameScene.score}`);
-
         if (this.gameScene.bossSpawned) {
             this.bossTimerText.setText('!! BOSS INCOMING !!').setColor('#ff4444');
         } else {
@@ -663,12 +675,10 @@ class UIScene extends Phaser.Scene {
             const seconds = String(totalSeconds % 60).padStart(2, '0');
             this.bossTimerText.setText(`Boss In: ${minutes}:${seconds}`).setColor('#ffffff');
         }
-
         const cost = this.gameScene.getCurrentSummonCost();
         this.summonText.setText(`SUMMON (${cost})`);
         const summonBtnBg = this.inGameUI[0];
         summonBtnBg.clear().fillStyle(this.gameScene.mana >= cost ? 0x1f8fff : 0x666666, 1).fillRoundedRect(WIDTH/2 - 140, HEIGHT - 110, 280, 80, 20);
-
         const timeSinceUltimate = this.game.getTime() - this.gameScene.lastUltimateTime;
         const ultBtnX = WIDTH - 180, ultTextX = WIDTH - 105;
         if (timeSinceUltimate < ULTIMATE_COOLDOWN) {
@@ -689,6 +699,9 @@ class UIScene extends Phaser.Scene {
 const config = {
     type: Phaser.AUTO,
     width: WIDTH, height: HEIGHT, parent: 'game', backgroundColor: '#000011',
+    dom: {
+        createContainer: true
+    },
     render: { powerPreference: 'high-performance' },
     physics: { default: 'arcade', arcade: { debug: false } },
     scene: [GameScene, UIScene],
