@@ -2,7 +2,7 @@
 <html>
 <head>
     <meta charset="utf-8" />
-    <title>Playable Ad - Merge TD (V9 - UI Reverted & Bugs Fixed)</title>
+    <title>Playable Ad - Merge TD (Endless Version 3)</title>
     <script src="https://cdn.jsdelivr.net/npm/phaser@3/dist/phaser.js"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -35,7 +35,10 @@ const TOWER_CONFIG = {
     arrow:     { color: 0xffffff, baseDmg: 12, specialChance: 0.25 },
     mana:      { color: 0x9966ff, baseDmg: 8,  specialChance: 0.0 }
 };
-const ENEMY_BASE_HP = 50; const ENEMY_BASE_SPEED = 120; const ENEMY_SPAWN_DELAY = 1300;
+const ENEMY_BASE_HP = 100; // ADJUSTED: Start HP is 100
+const ENEMY_BASE_SPEED = 120;
+const ENEMY_SPAWN_RATE = 500; // ADJUSTED: Spawn every 0.5 seconds!
+const BOSS_SPAWN_TIME = 120; // 2 minutes
 const MEDIUM_ENEMY_HP = 120; const MEDIUM_ENEMY_SPEED = 100; const MEDIUM_MANA_REWARD = 20;
 const MANA_REGEN_RATE = 10; const MANA_PER_KILL = 12; const BASE_SUMMON_COST = 10;
 const ULTIMATE_COOLDOWN = 30000;
@@ -43,59 +46,9 @@ const ULTIMATE_EXPLOSION_DMG = 80;
 const ULTIMATE_EXPLOSION_RADIUS = 55;
 const ULTIMATE_FIRE_ZONE_DURATION = 3000;
 const ULTIMATE_FIRE_DMG = 15;
-const STORE_URL = 'https://play.google.com/store/apps/details?id=com.example.mergetd';
-const BEACON_ENDPOINT = 'https://your-analytics-endpoint.com/collect';
+const PROJECTILE_SPEED = 350; // ADJUSTED: Projectile duration (higher is slower)
 
 function randChoice(arr){ return arr[Math.floor(Math.random()*arr.length)]; }
-
-/* =========================
-    CLASS: InstrumentationManager
-   ========================= */
-class InstrumentationManager {
-    constructor() {
-        this.startTime = 0; this.deltas = [];
-        this.data = {
-            t_first_tap: -1, t_first_reward: -1, t_CTA_shown: -1, t_CTA_click: -1,
-            play_through: false, median_fps: 0, delta_p95: 0, final_score: 0
-        };
-        this.beaconSent = false;
-    }
-    now() { return performance.now(); }
-    relativeNow() { return this.startTime === 0 ? 0 : this.now() - this.startTime; }
-    recordFirstTap() { if (this.data.t_first_tap === -1) { this.startTime = this.now(); this.data.t_first_tap = 0; } }
-    recordFirstReward() { if (this.data.t_first_reward === -1) this.data.t_first_reward = this.relativeNow(); }
-    recordCTAShown() { if (this.data.t_CTA_shown === -1) this.data.t_CTA_shown = this.relativeNow(); }
-    recordCTAClick() { if (this.data.t_CTA_click === -1) this.data.t_CTA_click = this.relativeNow(); }
-    setPlayThrough(status) { this.data.play_through = status; }
-    setScore(score) { this.data.final_score = score; }
-    addFrameData(delta) { if (this.startTime > 0) this.deltas.push(delta); }
-    calculateMetrics() {
-        if (this.deltas.length === 0) return;
-        this.deltas.sort((a, b) => a - b);
-        const mid = Math.floor(this.deltas.length / 2);
-        const medianDelta = this.deltas.length % 2 !== 0 ? this.deltas[mid] : (this.deltas[mid - 1] + this.deltas[mid]) / 2;
-        this.data.median_fps = 1000 / medianDelta;
-        const p95Index = Math.floor(this.deltas.length * 0.95);
-        this.data.delta_p95 = this.deltas[p95Index];
-    }
-    send() {
-        if (this.beaconSent) return;
-        this.beaconSent = true; this.calculateMetrics();
-        const dataString = JSON.stringify(this.data);
-        console.log("Sending Analytics Data:", dataString);
-        // --- BUG FIX: Commented out to prevent console errors during local development ---
-        /*
-        if (navigator.sendBeacon) {
-            navigator.sendBeacon(BEACON_ENDPOINT, dataString);
-        } else {
-            fetch(BEACON_ENDPOINT, {
-                method: 'POST', body: dataString, keepalive: true,
-                headers: { 'Content-Type': 'application/json' }
-            });
-        }
-        */
-    }
-}
 
 /* =========================
     CLASS: TutorialManager
@@ -193,25 +146,41 @@ class GameScene extends Phaser.Scene {
         graphics.generateTexture('projectile_texture', 10, 10); graphics.destroy();
     }
     create(){
-        this.playerHP = 5; this.score = 0; this.mana = 30; this.summonCount = 0;
-        this.powerUpActive = false; this.bossSpawned = false; this.boss = null;
-        this.difficultyLevel = 0; this.isGameOver = false; this.waitingForAllEnemiesToDie = false;
-        this.ultimateReady = true; this.lastUltimateTime = -ULTIMATE_COOLDOWN; this.fireZones = [];
-        this.gameStarted = false; this.firstRewardTriggered = false;
+        this.playerHP = 10;
+        this.score = 0;
+        this.mana = 50;
+        this.summonCount = 0;
+        this.bossSpawned = false;
+        this.boss = null;
+        this.bossLevel = 0;
+        this.enemyHpMultiplier = 1.0;
+        this.timeUntilBoss = BOSS_SPAWN_TIME;
+        this.isGameOver = false;
+        this.ultimateReady = true;
+        this.lastUltimateTime = -ULTIMATE_COOLDOWN;
+        this.fireZones = [];
+        this.gameStarted = false;
+
         this.add.rectangle(WIDTH/2, HEIGHT/2, WIDTH, HEIGHT, 0x16202a);
-        this.setupGrid(); this.setupPath();
-        this.towers = []; this.enemies = this.add.group();
+        this.setupGrid();
+        this.setupPath();
+        this.towers = [];
+        this.enemies = this.add.group();
         this.setupInputHandling();
         this.floatingTextPool = this.add.group({ classType: Phaser.GameObjects.Text, maxSize: 50, runChildUpdate: false });
         this.projectilePool = this.add.group({ defaultKey: 'projectile_texture', maxSize: 100, runChildUpdate: false });
         this.physics.pause();
+
         this.tutorial = new TutorialManager(this, this.scene.get('UIScene'));
+        this.startGame();
     }
     startGame() {
         this.physics.resume();
-        this.spawnTimer = this.time.addEvent({ delay: ENEMY_SPAWN_DELAY, loop: true, callback: this.spawnEnemy, callbackScope: this });
+        this.spawnTimer = this.time.addEvent({ delay: ENEMY_SPAWN_RATE, loop: true, callback: this.spawnEnemy, callbackScope: this });
         this.towerAttackTimer = this.time.addEvent({ delay: 200, loop: true, callback: this.updateTowerAttacks, callbackScope: this });
         this.manaRegenTimer = this.time.addEvent({ delay: 1000, loop: true, callback: () => { this.mana += MANA_REGEN_RATE; } });
+        this.bossTimer = this.time.addEvent({ delay: 1000, callback: this.updateBossTimer, callbackScope: this, loop: true });
+        this.enemyScalingTimer = this.time.addEvent({ delay: 10000, callback: this.scaleEnemyHp, callbackScope: this, loop: true });
         this.gameStarted = true;
         this.tutorial.start();
     }
@@ -222,6 +191,8 @@ class GameScene extends Phaser.Scene {
             if (this.towerAttackTimer) this.towerAttackTimer.paused = true;
             if (this.manaRegenTimer) this.manaRegenTimer.paused = true;
             if (this.bossSpawnTimer) this.bossSpawnTimer.paused = true;
+            if (this.bossTimer) this.bossTimer.paused = true;
+            if (this.enemyScalingTimer) this.enemyScalingTimer.paused = true;
         }
     }
     unfreezeGame(resumeTimers = true) {
@@ -231,25 +202,30 @@ class GameScene extends Phaser.Scene {
             if (this.towerAttackTimer) this.towerAttackTimer.paused = false;
             if (this.manaRegenTimer) this.manaRegenTimer.paused = false;
             if (this.bossSpawnTimer) this.bossSpawnTimer.paused = false;
+            if (this.bossTimer) this.bossTimer.paused = false;
+            if (this.enemyScalingTimer) this.enemyScalingTimer.paused = false;
          }
     }
-    increaseDifficulty() {
-        this.difficultyLevel++;
-        if (this.spawnTimer && !this.spawnTimer.paused) {
-            this.spawnTimer.delay = Math.max(350, ENEMY_SPAWN_DELAY - (this.difficultyLevel * 100));
+    scaleEnemyHp() {
+        if (this.isGameOver) return;
+        this.enemyHpMultiplier += 0.10; // ADJUSTED: Slower HP scaling
+    }
+    updateBossTimer() {
+        if (this.isGameOver || this.bossSpawned) return;
+        this.timeUntilBoss--;
+        if (this.timeUntilBoss <= 0) {
+            this.spawnBoss();
+            this.timeUntilBoss = 0;
         }
     }
-    activatePowerUp() {
-        if (this.powerUpActive) return; this.powerUpActive = true;
-        this.towers.forEach(tower => { tower.dmg *= 2; tower.attackRate /= 2; });
-        const buffText = this.add.text(WIDTH/2, HEIGHT/2, 'POWER SURGE!', { fontSize: '64px', color: '#ff0', fontStyle: 'bold', stroke: '#000', strokeThickness: 8 }).setOrigin(0.5).setDepth(200);
-        this.tweens.add({ targets: buffText, alpha: 0, y: '-=50', duration: 2000, onComplete: () => buffText.destroy() });
-    }
     spawnBoss() {
-        this.bossSpawned = true; this.spawnTimer.paused = true;
+        this.bossLevel++;
+        this.bossSpawned = true;
+        this.spawnTimer.paused = true;
         const startPoint = this.pathPoints[0];
         const boss = this.add.rectangle(startPoint.x, startPoint.y, 80, 90, 0xcc00ff).setOrigin(0.5).setStrokeStyle(4, 0xffffff);
-        boss.hp = ENEMY_BASE_HP * 150; boss.maxHp = boss.hp;
+        boss.hp = ENEMY_BASE_HP * 100 * (1 + this.bossLevel * 0.75);
+        boss.maxHp = boss.hp;
         boss.speed = ENEMY_BASE_SPEED * 0.4;
         boss.isDead = false; boss.progress = 0; boss.isBoss = true;
         boss.hpText = this.add.text(boss.x, boss.y - 60, `${Math.round(boss.hp)}`, { fontSize: '28px', color: '#ffffff', fontStyle: 'bold', stroke: '#000', strokeThickness: 5, fontFamily: "'Poppins', Arial, sans-serif" }).setOrigin(0.5).setDepth(150);
@@ -262,6 +238,10 @@ class GameScene extends Phaser.Scene {
         if (enemy.isBoss) {
             this.score += 200; this.mana += MANA_PER_KILL * 5;
             if (this.bossSpawnTimer) { this.bossSpawnTimer.remove(); this.bossSpawnTimer = null; }
+            this.spawnTimer.paused = false;
+            this.boss = null;
+            this.bossSpawned = false;
+            this.timeUntilBoss = BOSS_SPAWN_TIME; // Reset timer
         } else if (enemy.isMedium) {
             this.score += 3; this.mana += MEDIUM_MANA_REWARD;
         } else {
@@ -272,13 +252,6 @@ class GameScene extends Phaser.Scene {
         this.tweens.add({ targets: targetsToFade, alpha: 0, scale: 0.5, duration: 200,
             onComplete: () => { if (enemy) { if (enemy.hpText) enemy.hpText.destroy(); enemy.destroy(); } }
         });
-
-        if (!this.firstRewardTriggered) {
-             this.scene.get('UIScene').triggerFirstReward("FIRST BLOOD!");
-        }
-
-        if (this.score >= 150 && !this.bossSpawned) this.spawnBoss();
-        if (enemy === this.boss) { this.waitingForAllEnemiesToDie = true; }
     }
     update(time, delta){
         if (this.isGameOver || !this.gameStarted) return;
@@ -307,28 +280,20 @@ class GameScene extends Phaser.Scene {
                 }
             });
         });
-        if (this.waitingForAllEnemiesToDie) {
-            if (this.enemies.getChildren().length === 0) {
-                this.waitingForAllEnemiesToDie = false; this.time.delayedCall(1000, this.winGame, [], this);
-            }
-        }
     }
     onEnemyReachBase(enemy){
         if(!enemy||enemy.isDead)return; enemy.isDead=true;
         if (enemy.hpText) enemy.hpText.destroy(); enemy.destroy();
         this.playerHP--; if(this.playerHP<=0)this.loseGame();
     }
-    endGame(isVictory) {
-        if (this.isGameOver) return; this.isGameOver = true; this.freezeGame();
+    endGame() {
+        if (this.isGameOver) return;
+        this.isGameOver = true;
+        this.freezeGame();
         const uiScene = this.scene.get('UIScene');
-        uiScene.instrumentation.setPlayThrough(isVictory);
-        uiScene.instrumentation.setScore(this.score);
-        uiScene.instrumentation.send();
-        if (isVictory) { uiScene.showVictoryCta(this.score, 'VICTORY!'); }
-        else { uiScene.showVictoryCta(this.score, 'DEFEAT'); }
+        uiScene.showGameOver(this.score);
     }
-    winGame() { this.endGame(true); }
-    loseGame(){ this.endGame(false); }
+    loseGame(){ this.endGame(); }
     setupGrid(){
         this.grid = Array(GRID_ROWS).fill(null).map(() => Array(GRID_COLS).fill(null));
         this.add.rectangle(WIDTH/2, GRID_Y + GRID_H/2, GRID_W+20, GRID_H+20, 0x0f1720).setStrokeStyle(3, 0x2b3942);
@@ -367,7 +332,6 @@ class GameScene extends Phaser.Scene {
         const label=this.add.text(cx,cy+(CELL_SIZE/2)-24,`L${level}`,{fontSize:'18px',color:'#000', fontFamily:"'Poppins', Arial, sans-serif", fontStyle:'bold'}).setOrigin(0.5).setDepth(2);
         let towerDmg=TOWER_CONFIG[type].baseDmg*Math.pow(1.4,level-1);
         let towerAttackRate=Math.max(300-(level-1)*20,150);
-        if(this.powerUpActive){towerDmg*=2;towerAttackRate/=2;}
         const tower={sprite,label,r,c,x:cx,y:cy,type,level,dmg:towerDmg,attackRate:towerAttackRate,lastAttack:0};
         this.grid[r][c]=tower; this.towers.push(tower);
     }
@@ -398,10 +362,6 @@ class GameScene extends Phaser.Scene {
         this.placeTowerAtCell(tr,tc,newType,newLevel);
         const fx=this.add.circle(GRID_X+tc*CELL_SIZE+CELL_SIZE/2, GRID_Y+tr*CELL_SIZE+CELL_SIZE/2, 40, 0xffffff, 0.8);
         this.tweens.add({targets:fx,scale:2.5,alpha:0,duration:300, onComplete:()=>fx.destroy()});
-
-        if (!this.firstRewardTriggered) {
-            this.scene.get('UIScene').triggerFirstReward("AWESOME MERGE!");
-        }
     }
     returnTowerToOriginalPosition(t){ t.sprite.x=t.x; t.sprite.y=t.y; t.label.x=t.x; t.label.y=t.y+(CELL_SIZE/2)-24; }
     findTowerBySprite(s){return this.towers.find(t=>t.sprite===s);}
@@ -413,8 +373,9 @@ class GameScene extends Phaser.Scene {
     spawnEnemy(){
         if(this.isGameOver)return; const startPoint=this.pathPoints[0];
         const enemy=this.add.rectangle(startPoint.x,startPoint.y,30,36,0xff4466).setOrigin(0.5).setStrokeStyle(3, 0xffffff);
-        enemy.hp=(ENEMY_BASE_HP+Math.floor(this.score*0.3))*(1+this.difficultyLevel*0.25);
-        enemy.maxHp = enemy.hp; enemy.speed=ENEMY_BASE_SPEED+(this.difficultyLevel*12);
+        enemy.hp=(ENEMY_BASE_HP + Math.floor(this.score * 0.1)) * this.enemyHpMultiplier;
+        enemy.maxHp = enemy.hp;
+        enemy.speed = ENEMY_BASE_SPEED; // No more speed increase
         enemy.isDead=false; enemy.progress=0; enemy.isMedium=false; enemy.isBoss=false;
         enemy.hpText = this.add.text(enemy.x, enemy.y - 30, `${Math.round(enemy.hp)}`, { fontSize: '16px', color: '#ffffff', fontStyle: 'bold', stroke: '#000', strokeThickness: 4, fontFamily: "'Poppins', Arial, sans-serif" }).setOrigin(0.5).setDepth(150);
         this.enemies.add(enemy); this.moveEnemyAlongPath(enemy);
@@ -426,7 +387,8 @@ class GameScene extends Phaser.Scene {
                 if (this.isGameOver) return;
                 const startPoint = this.pathPoints[0];
                 const mediumEnemy = this.add.rectangle(startPoint.x, startPoint.y, 40, 46, 0xff8800).setOrigin(0.5).setStrokeStyle(3, 0xffffff);
-                mediumEnemy.hp = MEDIUM_ENEMY_HP + (this.difficultyLevel * 18); mediumEnemy.maxHp = mediumEnemy.hp;
+                mediumEnemy.hp = MEDIUM_ENEMY_HP * this.enemyHpMultiplier;
+                mediumEnemy.maxHp = mediumEnemy.hp;
                 mediumEnemy.speed = MEDIUM_ENEMY_SPEED;
                 mediumEnemy.isDead = false; mediumEnemy.progress = 0; mediumEnemy.isMedium = true; mediumEnemy.isBoss = false;
                 mediumEnemy.hpText = this.add.text(mediumEnemy.x, mediumEnemy.y - 40, `${Math.round(mediumEnemy.hp)}`, { fontSize: '20px', color: '#ffffff', fontStyle: 'bold', stroke: '#000', strokeThickness: 4, fontFamily: "'Poppins', Arial, sans-serif" }).setOrigin(0.5).setDepth(150);
@@ -466,12 +428,13 @@ class GameScene extends Phaser.Scene {
         }
     }
     towerAttack(tower,enemy){
-        const flash = this.add.circle(tower.x, tower.y, CELL_SIZE/2, 0xffffff, 0.7).setDepth(5);
-        this.tweens.add({ targets: flash, scale: 1.5, alpha: 0, duration: 150, onComplete: () => flash.destroy() });
-
         const projectile = this.projectilePool.get(tower.x, tower.y); if (!projectile) return;
         projectile.setActive(true).setVisible(true).setTint(TOWER_CONFIG[tower.type].color);
-        this.tweens.add({ targets: projectile, x: enemy.x, y: enemy.y, duration: 200,
+        this.tweens.add({
+            targets: projectile,
+            x: enemy.x,
+            y: enemy.y,
+            duration: PROJECTILE_SPEED, // Use the constant for speed
             onComplete: () => { if (projectile.active) { this.projectilePool.killAndHide(projectile); } }
         });
         let damage=Math.round(tower.dmg*(0.9+Math.random()*0.2)); const config=TOWER_CONFIG[tower.type];
@@ -574,171 +537,49 @@ class UIScene extends Phaser.Scene {
     constructor(){ super({key: 'UIScene', active: true}); }
     create(){
         this.gameScene = this.scene.get('GameScene');
-        this.instrumentation = new InstrumentationManager();
         this.fontStyle = { fontFamily: "'Poppins', Arial, sans-serif", fontSize: '32px', color: '#fff', fontStyle: '700' };
-        this.startOverlay = this.add.rectangle(WIDTH/2, HEIGHT/2, WIDTH, HEIGHT, 0x000000, 0.7).setInteractive();
-        this.startText = this.add.text(WIDTH/2, HEIGHT/2, 'TAP TO START', { ...this.fontStyle, fontSize: '56px' }).setOrigin(0.5);
-        this.startOverlay.setDepth(4000); this.startText.setDepth(4001);
-        this.tweens.add({ targets: this.startText, scale: 1.1, alpha: 0.7, duration: 800, ease: 'Sine.easeInOut', yoyo: true, repeat: -1 });
-        this.startOverlay.once('pointerdown', this.startGame, this);
+
         const summonBtnBg = this.add.graphics();
         this.summonBtn = this.add.zone(WIDTH/2-140, HEIGHT-110, 280, 80).setOrigin(0).setInteractive();
         this.summonText = this.add.text(WIDTH/2, HEIGHT-70, `SUMMON`, this.fontStyle).setOrigin(0.5);
         this.summonBtn.on('pointerdown', () => this.gameScene.doSummon());
+
         this.ultimateBtnBg = this.add.graphics();
         this.ultimateCooldownIndicator = this.add.graphics();
         const ultBtnX = WIDTH - 180, ultTextX = WIDTH - 105;
         this.ultimateBtn = this.add.zone(ultBtnX, HEIGHT - 110, 150, 80).setOrigin(0).setInteractive();
         this.ultimateText = this.add.text(ultTextX, HEIGHT - 70, 'ULTIMATE', { ...this.fontStyle, fontSize: '24px' }).setOrigin(0.5);
         this.ultimateBtn.on('pointerdown', () => this.gameScene.castUltimate());
+
         this.hpText = this.add.text(30, 30, `HP: 0`, this.fontStyle).setOrigin(0,0);
         this.scoreText = this.add.text(WIDTH-30, 30, `Score: 0`, this.fontStyle).setOrigin(1,0);
         this.manaText = this.add.text(30, 80, `Mana: 0`, this.fontStyle).setOrigin(0,0);
-        this.timerText = this.add.text(WIDTH/2, 30, 'Time: 15', this.fontStyle).setOrigin(0.5,0);
+        this.bossTimerText = this.add.text(WIDTH/2, 30, '', { ...this.fontStyle, fontSize: '28px' }).setOrigin(0.5,0);
+
         this.createTowerLegend();
 
-        // --- REVERT: Skip button position reverted to original ---
-        this.skipButton = this.add.text(WIDTH - 95, 105, 'Skip Ad', { ...this.fontStyle, fontSize: '22px', color: '#fff' }).setOrigin(0.5).setVisible(false).disableInteractive();
-        this.skipButtonBg = this.add.graphics().setVisible(false); // This was in the original, re-adding for completeness
-        this.skipButton.on('pointerdown', () => this.gameScene.loseGame());
+        this.inGameUI = [summonBtnBg, this.summonBtn, this.summonText, this.manaText, this.scoreText, this.hpText, this.bossTimerText, this.ultimateBtnBg, this.ultimateCooldownIndicator, this.ultimateBtn, this.ultimateText, ...this.towerLegendGroup.getChildren()];
 
-        this.inGameUI = [summonBtnBg, this.summonBtn, this.summonText, this.manaText, this.scoreText, this.hpText, this.timerText, this.ultimateBtnBg, this.ultimateCooldownIndicator, this.ultimateBtn, this.ultimateText, this.skipButton, this.skipButtonBg];
-
-        this.createVictoryCta();
-        this.createTimesUpCta();
-        this.createStickyCTA();
-        this.inGameUI.forEach(ui => { if(ui) ui.setVisible(false); });
+        this.createGameOverCta();
     }
 
-    // --- REVERT: Sticky CTA creation reverted to original ---
-    createStickyCTA() {
-        const ctaWidth = 200;
-        const ctaHeight = 60;
-        const ctaX = WIDTH - (ctaWidth / 2) - 150; // Position on the right with padding
-        const ctaY = 130;
-
-        const ctaBg = this.add.graphics();
-        ctaBg.fillStyle(0x1a73e8, 1).fillRoundedRect(0, 0, ctaWidth, ctaHeight, 15);
-        const ctaText = this.add.text(ctaWidth / 2, ctaHeight / 2, 'PLAY NOW!', {...this.fontStyle, fontSize:'32px'}).setOrigin(0.5);
-        const ctaZone = this.add.zone(0, 0, ctaWidth, ctaHeight).setOrigin(0).setInteractive();
-
-        this.stickyCtaContainer = this.add.container(ctaX, ctaY, [ctaBg, ctaText, ctaZone]);
-        this.stickyCtaContainer.setSize(ctaWidth, ctaHeight);
-        this.stickyCtaContainer.setDepth(3000);
-        this.stickyCtaContainer.setVisible(false);
-
-        ctaZone.on('pointerdown', this.onCTAClick, this);
-
-        this.tweens.add({
-            targets: this.stickyCtaContainer,
-            scaleX: 1.05,
-            scaleY: 1.05,
-            angle: 1,
-            duration: 400,
-            ease: 'Sine.easeInOut',
-            yoyo: true,
-            repeat: -1
-        });
-    }
-
-    triggerFirstReward(message = "AWESOME!") {
-        if (this.gameScene.firstRewardTriggered) return;
-        this.gameScene.firstRewardTriggered = true;
-        this.instrumentation.recordFirstReward();
-
-        const rewardText = this.add.text(WIDTH/2, HEIGHT/2, message, {
-            ...this.fontStyle,
-            fontSize: '84px',
-            color: '#ffdd00',
-            stroke: '#000',
-            strokeThickness: 8
-        }).setOrigin(0.5).setDepth(5000).setScale(0);
-
-        this.tweens.add({
-            targets: rewardText,
-            scale: 1.2,
-            duration: 400,
-            ease: 'Back.easeOut',
-            onComplete: () => {
-                this.tweens.add({
-                    targets: rewardText,
-                    scale: 1.0,
-                    duration: 200,
-                    ease: 'Sine.easeInOut',
-                    onComplete: () => {
-                        this.time.delayedCall(800, () => {
-                            this.tweens.add({
-                                targets: rewardText,
-                                scale: 0,
-                                alpha: 0,
-                                duration: 300,
-                                ease: 'Back.easeIn',
-                                onComplete: () => {
-                                    rewardText.destroy();
-                                    this.showStickyCTA();
-                                }
-                            });
-                        });
-                    }
-                });
-            }
-        });
-    }
-
-    showStickyCTA() {
-        if (this.stickyCtaContainer.visible) return;
-        this.instrumentation.recordCTAShown();
-        this.stickyCtaContainer.setVisible(true);
-    }
-
-    onCTAClick() {
-        this.instrumentation.recordCTAClick();
-        this.gameScene.freezeGame(false);
-        if (typeof mraid !== 'undefined') {
-            mraid.open(STORE_URL);
-        } else {
-            window.open(STORE_URL, '_blank');
-        }
-        this.instrumentation.send();
-    }
-
-    createVictoryCta() {
-        this.victoryCtaGroup = this.add.group();
+    createGameOverCta() {
+        this.gameOverGroup = this.add.group();
         const overlay = this.add.rectangle(WIDTH/2,HEIGHT/2,WIDTH,HEIGHT,0x000000,0.8);
-        this.victoryTitleText = this.add.text(WIDTH/2, HEIGHT/2 - 120, 'VICTORY!', {...this.fontStyle, fontSize:'84px'}).setOrigin(0.5);
-        this.victoryScoreText = this.add.text(WIDTH/2, HEIGHT/2 - 20, '', {...this.fontStyle, fontSize:'48px'}).setOrigin(0.5);
-        const ctaButtonBg = this.add.graphics();
-        ctaButtonBg.fillStyle(0x1a73e8, 1).fillRoundedRect(WIDTH/2 - 150, HEIGHT/2 + 60, 300, 80, 20);
-        const ctaText = this.add.text(WIDTH/2, HEIGHT/2 + 100, 'PLAY NOW!', {...this.fontStyle, fontSize:'40px'}).setOrigin(0.5);
-        const ctaZone = this.add.zone(WIDTH/2 - 150, HEIGHT/2 + 60, 300, 80).setOrigin(0).setInteractive();
-        const retryButton = this.add.text(WIDTH/2, HEIGHT/2 + 220, 'Retry', {...this.fontStyle, fontSize: '36px', color: '#aaa'}).setOrigin(0.5).setInteractive();
-        this.victoryCtaGroup.addMultiple([overlay, this.victoryTitleText, this.victoryScoreText, ctaButtonBg, ctaText, ctaZone, retryButton]);
-        this.victoryCtaGroup.getChildren().forEach(c => c.setDepth(5000));
-        this.victoryCtaGroup.setVisible(false);
-        ctaZone.on('pointerdown', this.onCTAClick, this);
-        retryButton.once('pointerdown', () => { this.scene.start('GameScene'); this.scene.restart(); });
-    }
+        const titleText = this.add.text(WIDTH/2, HEIGHT/2 - 120, 'GAME OVER', {...this.fontStyle, fontSize:'84px', color: '#ff4444'}).setOrigin(0.5);
+        this.gameOverScoreText = this.add.text(WIDTH/2, HEIGHT/2 - 20, '', {...this.fontStyle, fontSize:'48px'}).setOrigin(0.5);
 
-    createTimesUpCta() {
-        this.timesUpCtaGroup = this.add.group();
-        const overlay = this.add.rectangle(WIDTH/2,HEIGHT/2,WIDTH,HEIGHT,0x000000,0.8);
-        const title = this.add.text(WIDTH/2, HEIGHT/2 - 120, "TIME'S UP!", {...this.fontStyle, fontSize:'84px'}).setOrigin(0.5);
-        this.timesUpScoreText = this.add.text(WIDTH/2, HEIGHT/2 - 20, '', {...this.fontStyle, fontSize:'48px'}).setOrigin(0.5);
-        const ctaButtonBg = this.add.graphics();
-        ctaButtonBg.fillStyle(0x1a73e8, 1).fillRoundedRect(WIDTH/2 - 150, HEIGHT/2 + 60, 300, 80, 20);
-        const ctaText = this.add.text(WIDTH/2, HEIGHT/2 + 100, 'PLAY NOW!', {...this.fontStyle, fontSize:'40px'}).setOrigin(0.5);
-        const ctaZone = this.add.zone(WIDTH/2 - 150, HEIGHT/2 + 60, 300, 80).setOrigin(0).setInteractive();
-        const resumeButton = this.add.text(WIDTH/2, HEIGHT/2 + 220, 'RESUME', {...this.fontStyle, fontSize: '48px', color: '#66ff66'}).setOrigin(0.5).setInteractive();
-        this.timesUpCtaGroup.addMultiple([overlay, title, this.timesUpScoreText, ctaButtonBg, ctaText, ctaZone, resumeButton]);
-        this.timesUpCtaGroup.getChildren().forEach(c => c.setDepth(5000));
-        this.timesUpCtaGroup.setVisible(false);
-        ctaZone.on('pointerdown', this.onCTAClick, this);
-        resumeButton.on('pointerdown', () => {
-            this.timesUpCtaGroup.setVisible(false);
-            if (this.wasStickyCtaVisible) {
-                 this.stickyCtaContainer.setVisible(true);
-            }
-            this.gameScene.unfreezeGame();
+        const retryButton = this.add.text(WIDTH/2, HEIGHT/2 + 100, 'RETRY', {...this.fontStyle, fontSize: '48px', color: '#66ff66'}).setOrigin(0.5).setInteractive();
+
+        this.gameOverGroup.addMultiple([overlay, titleText, this.gameOverScoreText, retryButton]);
+        this.gameOverGroup.getChildren().forEach(c => c.setDepth(5000));
+        this.gameOverGroup.setVisible(false);
+
+        // BUG FIX: Use a more robust scene restart method
+        retryButton.on('pointerdown', () => {
+            this.scene.stop('GameScene');
+            this.scene.start('GameScene');
+            this.scene.restart();
         });
     }
 
@@ -756,62 +597,36 @@ class UIScene extends Phaser.Scene {
             const effect = this.add.text(x, legendY + 40, effectText, {fontSize: '12px', color: '#aaa'}).setOrigin(0.5);
             this.towerLegendGroup.addMultiple([rect, name, effect]);
         });
-        this.towerLegendGroup.add(title); this.towerLegendGroup.setVisible(false);
+        this.towerLegendGroup.add(title);
     }
-    startGame(){
-        // --- BUG FIX: Resume audio context on the first user gesture ---
-        if (this.sound.context.state === 'suspended') {
-            this.sound.context.resume();
-        }
-        this.instrumentation.recordFirstTap();
-        this.startOverlay.setVisible(false); this.startText.setVisible(false);
-        this.inGameUI.forEach(ui => { if(ui) ui.setVisible(true); });
-        this.towerLegendGroup.setVisible(true);
-        this.gameScene.startGame();
-        this.timeLeft = 15;
-        this.timerEvent = this.time.addEvent({ delay: 1000, callback: this.updateTimer, callbackScope: this, loop: true });
-    }
-    updateTimer(){
-        if(this.gameScene.isGameOver) { if(this.timerEvent) this.timerEvent.remove(); return; }
-        this.timeLeft--;
-        this.timerText.setText(`Time: ${this.timeLeft}`);
-        if (this.timeLeft <= 0) {
-            if(this.timerEvent) this.timerEvent.remove();
-            this.timerText.setVisible(false);
-            this.showTimesUpCta(this.gameScene.score);
-            this.skipButton.setVisible(true).setInteractive();
-            this.skipButtonBg.setVisible(true);
-        }
-    }
+
     showUltimateText() {
         const ultText = this.add.text(WIDTH/2, HEIGHT/2, 'ULTIMATE!', { fontSize: '92px', color: '#ffdd00', fontStyle: 'bold', stroke: '#ff6600', strokeThickness: 12 }).setOrigin(0.5).setDepth(300).setScale(0.5);
         this.tweens.add({ targets: ultText, scale: 1.2, alpha: 0, duration: 1500, ease: 'Cubic.easeOut', onComplete: () => ultText.destroy() });
     }
-    showVictoryCta(score, title){
-        if (this.timerEvent) this.timerEvent.remove();
+
+    showGameOver(score){
         this.gameScene.freezeGame();
         this.inGameUI.forEach(ui => { if(ui) ui.setVisible(false); });
-        this.towerLegendGroup.setVisible(false);
-        this.stickyCtaContainer.setVisible(false);
-        this.victoryCtaGroup.setVisible(true);
-        this.victoryTitleText.setText(title);
-        this.victoryScoreText.setText(`Final Score: ${score}`);
-    }
-
-    showTimesUpCta(score) {
-        this.gameScene.freezeGame();
-        this.wasStickyCtaVisible = this.stickyCtaContainer.visible;
-        this.stickyCtaContainer.setVisible(false);
-        this.timesUpCtaGroup.setVisible(true);
-        this.timesUpScoreText.setText(`Your Score: ${score}`);
+        this.gameOverGroup.setVisible(true);
+        this.gameOverScoreText.setText(`Final Score: ${score}`);
     }
 
     update(time, delta){
-        this.instrumentation.addFrameData(delta);
-        if(this.startOverlay.visible || !this.gameScene.sys.isActive() || this.gameScene.isGameOver) return;
+        if(!this.gameScene.sys.isActive() || this.gameScene.isGameOver) return;
+
         this.manaText.setText(`Mana: ${Math.floor(this.gameScene.mana)}`);
         this.hpText.setText(`HP: ${this.gameScene.playerHP}`);
         this.scoreText.setText(`Score: ${this.gameScene.score}`);
+
+        if (this.gameScene.bossSpawned) {
+            this.bossTimerText.setText('!! BOSS INCOMING !!').setColor('#ff4444');
+        } else {
+            const totalSeconds = this.gameScene.timeUntilBoss;
+            const minutes = String(Math.floor(totalSeconds / 60)).padStart(2, '0');
+            const seconds = String(totalSeconds % 60).padStart(2, '0');
+            this.bossTimerText.setText(`Boss In: ${minutes}:${seconds}`).setColor('#ffffff');
+        }
 
         const cost = this.gameScene.getCurrentSummonCost();
         this.summonText.setText(`SUMMON (${cost})`);
