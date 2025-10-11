@@ -168,3 +168,17 @@ main > section:nth-of-type(even) {
     opacity: 1;
     transform: translateY(0);
 }
+
+/* Sortable header styles */
+.sortable {
+    cursor: pointer;
+    user-select: none;
+    position: relative;
+  }
+  
+  .sort-indicator {
+    font-size: 0.8em;
+    margin-left: 6px;
+    transition: opacity 0.2s ease;
+  }
+  
