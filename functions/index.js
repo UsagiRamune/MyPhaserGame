@@ -4,8 +4,10 @@ const {getDatabase} = require("firebase-admin/database");
 const express = require("express");
 const cors = require("cors");
 const allowedOrigins = [
-  'https://realtimedata-phasergame.web.app',
-  'https://kheeplayableads.netlify.app',
+    'https://realtimedata-phasergame.web.app',
+    'https://kheeplayableads.netlify.app',
+    'http://127.0.0.1:5500', 
+    'http://localhost:5000'   
 ];
 
 

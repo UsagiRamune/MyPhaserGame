@@ -1,19 +1,12 @@
 document.addEventListener('DOMContentLoaded', () => {
 
   // =======================================================
-  // CONFIG - แก้แค่ตรงนี้พอ!
+  // CONFIG 
   // =======================================================
-  // URL นี้คือ URL ที่ได้จากการรัน Firebase Emulator ในเครื่องมึง
-  // ปกติมันจะเป็น URL นี้แหละ ถ้าไม่ใช่ค่อยแก้
   const API_ENDPOINT = "https://asia-southeast1-realtimedata-phasergame.cloudfunctions.net/api";
   
-  // ไม่ต้องใช้ Firebase SDK ที่ฝั่ง Client อีกต่อไปแล้ว! ลบส่วนนั้นทิ้งได้เลย
-  // const firebaseConfig = { ... };
-  // firebase.initializeApp(firebaseConfig);
-  // const database = firebase.database();
-  
   // =======================================================
-  // RECEIVE SCORE FROM GAME & CALL API (ส่วนนี้แก้ใหม่)
+  // RECEIVE SCORE FROM GAME & CALL API
   // =======================================================
   window.addEventListener('message', async (event) => {
     const data = event.data;
@@ -21,7 +14,6 @@ document.addEventListener('DOMContentLoaded', () => {
       console.log('🎮 Score received from game:', data);
 
       try {
-        // ใช้ fetch เพื่อยิง request ไปหา API ของเรา
         const response = await fetch(`${API_ENDPOINT}/submit-score`, {
           method: 'POST',
           headers: {
@@ -38,33 +30,28 @@ document.addEventListener('DOMContentLoaded', () => {
         const result = await response.json();
         console.log('✅ Score submitted via API!', result);
         
-        // เมื่อส่งคะแนนสำเร็จ, ให้โหลดข้อมูล leaderboard ใหม่ทันที
         fetchAndRenderLeaderboard();
 
       } catch (error) {
         console.error('❌ Error submitting score via API:', error);
-        alert('Failed to submit score. Please try again.'); // แจ้งเตือนผู้ใช้หน่อย
+        alert('Failed to submit score. Please try again.');
       }
     }
   });
 
   // =======================================================
-  // STATE & UI FUNCTIONS (ส่วนนี้ใช้โค้ดเดิมของมึงเลย เพราะมันดีอยู่แล้ว)
+  // LEADERBOARD STATE & UI FUNCTIONS
   // =======================================================
   let allScores = [];
   let rankMap = {};
-  let sortField = null;
-  let sortDirection = null;
+  let sortField = 'score'; // Default sort field
+  let sortDirection = 'desc'; // Default sort direction
 
   function buildCanonicalRankMap(list) {
     const canonical = [...list].sort((a, b) => {
-      if ((b.score || 0) === (a.score || 0)) {
-        if ((a.playCount || 0) === (b.playCount || 0)) {
-          return (a.createdAt || 0) - (b.createdAt || 0);
-        }
-        return (a.playCount || 0) - (b.playCount || 0);
-      }
-      return (b.score || 0) - (a.score || 0);
+      const scoreDiff = (b.score || 0) - (a.score || 0);
+      if (scoreDiff !== 0) return scoreDiff;
+      return (a.playerName || '').localeCompare(b.playerName || '');
     });
     const map = {};
     canonical.forEach((p, i) => { map[p._key] = i + 1; });
@@ -100,29 +87,33 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!sortField || !sortDirection) {
       sorted = [...allScores].sort((a, b) => (rankMap[a._key] || 999) - (rankMap[b._key] || 999));
     } else {
-      // (โค้ดส่วน sort ที่ซับซ้อนของมึงยังคงใช้ได้เหมือนเดิม)
        if (sortField === 'ranking') {
           sorted = [...allScores].sort((a, b) => {
             const rankA = rankMap[a._key] || 999;
             const rankB = rankMap[b._key] || 999;
-            return sortDirection === 'desc' ? (rankA - rankB) : (rankB - rankA);
+            return sortDirection === 'asc' ? (rankA - rankB) : (rankB - rankA);
           });
         } else if (sortField === 'score') {
           sorted = [...allScores].sort((a, b) => {
             const aScore = a.score || 0; const bScore = b.score || 0;
-            if (aScore !== bScore) return sortDirection === 'asc' ? aScore - bScore : bScore - aScore;
-            const aPlay = a.playCount || 0; const bPlay = b.playCount || 0;
-            if (aPlay !== bPlay) return aPlay - bPlay;
-            return (a.createdAt || 0) - (b.createdAt || 0);
+            const scoreDiff = sortDirection === 'asc' ? aScore - bScore : bScore - aScore;
+            if (scoreDiff !== 0) return scoreDiff;
+            return (a.playerName || '').localeCompare(b.playerName || '');
           });
         } else if (sortField === 'playCount') {
           sorted = [...allScores].sort((a, b) => {
             const aPlay = a.playCount || 0; const bPlay = b.playCount || 0;
-            if (aPlay !== bPlay) return sortDirection === 'asc' ? aPlay - bPlay : bPlay - aPlay;
-            const aScore = a.score || 0; const bScore = b.score || 0;
-            if (aScore !== bScore) return bScore - aScore;
-            return (a.createdAt || 0) - (b.createdAt || 0);
+            const playDiff = sortDirection === 'asc' ? aPlay - bPlay : bPlay - aPlay;
+            if (playDiff !== 0) return playDiff;
+            return (a.playerName || '').localeCompare(b.playerName || '');
           });
+        } else if (sortField === 'name') {
+            sorted = [...allScores].sort((a, b) => {
+                const nameA = a.playerName || '';
+                const nameB = b.playerName || '';
+                const comparison = nameA.localeCompare(nameB);
+                return sortDirection === 'asc' ? comparison : -comparison;
+            });
         }
     }
     updateLeaderboardUI(sorted.slice(0, 10));
@@ -148,14 +139,14 @@ document.addEventListener('DOMContentLoaded', () => {
       sortDirection = (sortDirection === "asc") ? "desc" : "asc";
     } else {
       sortField = field;
-      sortDirection = "desc";
+      sortDirection = (field === 'name' || field === 'ranking') ? "asc" : "desc";
     }
     updateSortIndicators();
     sortScoresForDisplay();
   });
   
   // =======================================================
-  // FETCH LEADERBOARD FROM API & RENDER (ส่วนนี้แก้ใหม่)
+  // FETCH LEADERBOARD FROM API & RENDER
   // =======================================================
   async function fetchAndRenderLeaderboard() {
     try {
@@ -181,7 +172,7 @@ document.addEventListener('DOMContentLoaded', () => {
   fetchAndRenderLeaderboard();
 
   // =======================================================
-  // UI LOGIC (fullscreen, overlay, fade-in) — ไม่ต้องแก้
+  // UI LOGIC (fullscreen, overlay, fade-in)
   // =======================================================
   const fadeInElements = document.querySelectorAll('.fade-in');
   const observer = new IntersectionObserver((entries) => {
@@ -194,10 +185,20 @@ document.addEventListener('DOMContentLoaded', () => {
   const gameContainer = document.getElementById('game-container');
   const fullscreenBtn = document.getElementById('fullscreen-btn');
   const exitFullscreenBtn = document.getElementById('exit-fullscreen-btn');
-  fullscreenBtn.addEventListener('click', () => gameContainer.classList.add('fullscreen') && gameContainer.requestFullscreen?.());
-  exitFullscreenBtn.addEventListener('click', () => document.exitFullscreen?.());
+  fullscreenBtn.addEventListener('click', () => {
+      if (gameContainer.requestFullscreen) {
+          gameContainer.requestFullscreen();
+      }
+  });
+  exitFullscreenBtn.addEventListener('click', () => {
+      if (document.exitFullscreen) {
+          document.exitFullscreen();
+      }
+  });
+
   document.addEventListener('fullscreenchange', () => {
     const isFullscreen = !!document.fullscreenElement;
+    document.body.classList.toggle('game-is-fullscreen', isFullscreen); 
     gameContainer.classList.toggle('fullscreen', isFullscreen);
     fullscreenBtn.classList.toggle('d-none', isFullscreen);
     exitFullscreenBtn.classList.toggle('d-none', !isFullscreen);

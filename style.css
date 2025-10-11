@@ -81,7 +81,7 @@ main > section:nth-of-type(even) {
     border: none;
 }
 
-/* --- เพิ่ม Style สำหรับ Play Overlay --- */
+/* --- Play Overlay --- */
 #play-overlay {
     position: absolute;
     top: 0;
@@ -139,7 +139,17 @@ main > section:nth-of-type(even) {
     box-shadow: none;
     max-width: 100%;
     aspect-ratio: auto;
+    background-color: #000; /* Add solid background */
 }
+
+/* ===== NEW RULES TO FIX OVERLAP ===== */
+body.game-is-fullscreen .navbar,
+body.game-is-fullscreen footer,
+body.game-is-fullscreen main > section:not(#game-section) {
+    display: none;
+}
+/* =================================== */
+
 
 /* --- How to Play Section --- */
 #how-to-play .card {
@@ -174,11 +184,10 @@ main > section:nth-of-type(even) {
     cursor: pointer;
     user-select: none;
     position: relative;
-  }
+}
   
-  .sort-indicator {
+.sort-indicator {
     font-size: 0.8em;
     margin-left: 6px;
     transition: opacity 0.2s ease;
-  }
-  
+}
