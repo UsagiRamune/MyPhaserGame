@@ -1,13 +1,13 @@
 // test-api.js
 const axios = require('axios');
-const API_URL = "http://127.0.0.1:5001/realtimedata-phasergame/asia-southeast1/api";
+const API_URL = "https://asia-southeast1-realtimedata-phasergame.cloudfunctions.net/api";
 
 async function runTests() {
   console.log('--- Running API Tests ---');
 
   // Test Case 1: Submit a valid score
   try {
-    const validPayload = { name: "Gemini-Test#1", score: 900 };
+    const validPayload = { name: "AxiosTester", score: 999 };
     const res = await axios.post(`${API_URL}/submit-score`, validPayload);
     console.log('✅ [PASS] Valid submission:', res.status, res.data.message);
   } catch (err) {
