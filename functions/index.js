@@ -3,6 +3,11 @@ const {initializeApp} = require("firebase-admin/app");
 const {getDatabase} = require("firebase-admin/database");
 const express = require("express");
 const cors = require("cors");
+const allowedOrigins = [
+  'https://realtimedata-phasergame.web.app',
+  'https://kheeplayableads.netlify.app',
+];
+
 
 console.log("🚀 Initializing Cloud Function (SDK v3+ style)...");
 
@@ -16,7 +21,16 @@ const db = getDatabase();
 const app = express();
 
 // --- MIDDLEWARE ---
-app.use(cors({origin: true}));
+app.use(cors({
+  origin: function(origin, callback) {
+    // อนุญาตถ้าเป็นหนึ่งใน whitelist หรือถ้าไม่ได้ระบุ origin (เช่น postman)
+    if (!origin || allowedOrigins.indexOf(origin) !== -1) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
+}));
 app.use(express.json());
 
 // --- ROUTES ---

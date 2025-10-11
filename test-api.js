@@ -7,7 +7,7 @@ async function runTests() {
 
   // Test Case 1: Submit a valid score
   try {
-    const validPayload = { name: "Gemini-Test", score: 9999 };
+    const validPayload = { name: "Gemini-Test#1", score: 900 };
     const res = await axios.post(`${API_URL}/submit-score`, validPayload);
     console.log('✅ [PASS] Valid submission:', res.status, res.data.message);
   } catch (err) {

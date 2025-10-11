@@ -5,7 +5,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // =======================================================
   // URL นี้คือ URL ที่ได้จากการรัน Firebase Emulator ในเครื่องมึง
   // ปกติมันจะเป็น URL นี้แหละ ถ้าไม่ใช่ค่อยแก้
-  const API_ENDPOINT = "http://127.0.0.1:5001/realtimedata-phasergame/asia-southeast1/api";
+  const API_ENDPOINT = "https://asia-southeast1-realtimedata-phasergame.cloudfunctions.net/api";
   
   // ไม่ต้องใช้ Firebase SDK ที่ฝั่ง Client อีกต่อไปแล้ว! ลบส่วนนั้นทิ้งได้เลย
   // const firebaseConfig = { ... };
