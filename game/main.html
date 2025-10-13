@@ -28,25 +28,35 @@ const GRID_Y = 240;
 const TILE_PADDING = 10;
 const TOWER_TYPES = ['fire','ice','lightning','poison','arrow','mana'];
 const TOWER_CONFIG = {
-    fire:      { color: 0xff6a00, baseDmg: 15, specialChance: 0.2 },
-    ice:       { color: 0x66ccff, baseDmg: 8,  specialChance: 0.25 },
-    lightning: { color: 0xffff66, baseDmg: 10, specialChance: 0.25 },
-    poison:    { color: 0x8fce00, baseDmg: 6,  specialChance: 0.3 },
-    arrow:     { color: 0xffffff, baseDmg: 12, specialChance: 0.25 },
-    mana:      { color: 0x9966ff, baseDmg: 8,  specialChance: 0.0 }
+    fire:      { color: 0xff6a00, baseDmg: 15, specialChance: 0.2, lv5Chance: 0.15 },
+    ice:       { color: 0x66ccff, baseDmg: 8,  specialChance: 0.25, lv5Chance: 0.20 },
+    lightning: { color: 0xffff66, baseDmg: 10, specialChance: 0.25, lv5Chance: 0.20 },
+    poison:    { color: 0x8fce00, baseDmg: 6,  specialChance: 0.3,  lv5Chance: 0.25 },
+    arrow:     { color: 0xffffff, baseDmg: 12, specialChance: 0.25, lv5Chance: 0.15 },
+    mana:      { color: 0x9966ff, baseDmg: 8,  specialChance: 0.0,  lv5Chance: 1.0 }
 };
-const ENEMY_BASE_HP = 100; // ADJUSTED: Start HP is 100
+
+const ENEMY_BASE_HP = 80;
 const ENEMY_BASE_SPEED = 120;
-const ENEMY_SPAWN_RATE = 500; // ADJUSTED: Spawn every 0.5 seconds!
-const BOSS_SPAWN_TIME = 120; // 2 minutes
-const MEDIUM_ENEMY_HP = 120; const MEDIUM_ENEMY_SPEED = 100; const MEDIUM_MANA_REWARD = 20;
-const MANA_REGEN_RATE = 10; const MANA_PER_KILL = 12; const BASE_SUMMON_COST = 10;
+const ENEMY_SPAWN_INTERVAL = 450;
+const BOSS_SPAWN_TIME = 120;
+const BOSS_BASE_HP = 7500;
+
+const MEDIUM_ENEMY_HP = 250; const MEDIUM_ENEMY_SPEED = 100; const MEDIUM_MANA_REWARD = 25;
+const SPEEDY_ENEMY_HP = 50; const SPEEDY_ENEMY_SPEED = 220;
+const MANA_ENEMY_HP = 120; const MANA_ENEMY_REWARD = 75;
+
+const MANA_REGEN_RATE = 12;
+const MANA_PER_KILL = 12;
+const BASE_SUMMON_COST = 10;
 const ULTIMATE_COOLDOWN = 30000;
 const ULTIMATE_EXPLOSION_DMG = 80;
 const ULTIMATE_EXPLOSION_RADIUS = 55;
 const ULTIMATE_FIRE_ZONE_DURATION = 3000;
 const ULTIMATE_FIRE_DMG = 15;
-const PROJECTILE_SPEED = 350; // ADJUSTED: Projectile duration (higher is slower)
+const PROJECTILE_SPEED = 350;
+
+const MANA_TOWER_PASSIVE_GEN = { 5: 5, 6: 8, 7: 12, 8: 18 };
 
 function randChoice(arr){ return arr[Math.floor(Math.random()*arr.length)]; }
 
@@ -77,7 +87,10 @@ class TutorialManager {
         this.createHighlight('These are the different Tower types!', WIDTH / 2, legendY - 60, 'up', 500, 120);
         this.uiScene.input.once('pointerdown', () => {
             if (this.currentState !== 'LEGEND') return;
-            this.clearInstructions(); this.gameScene.unfreezeGame(); this.currentState = 'MERGE';
+            this.clearInstructions();
+            this.gameScene.unfreezeGame();
+            this.gameScene.startNextWave();
+            this.currentState = 'MERGE';
             this.startMergeIndicator();
         });
     }
@@ -148,18 +161,28 @@ class GameScene extends Phaser.Scene {
     create(){
         this.playerHP = 10;
         this.score = 0;
+        this.loop = 0;
         this.mana = 50;
         this.summonCount = 0;
         this.bossSpawned = false;
         this.boss = null;
-        this.bossLevel = 0;
         this.enemyHpMultiplier = 1.0;
         this.timeUntilBoss = BOSS_SPAWN_TIME;
         this.isGameOver = false;
         this.ultimateReady = true;
         this.lastUltimateTime = -ULTIMATE_COOLDOWN;
         this.fireZones = [];
+        this.poisonPools = [];
         this.gameStarted = false;
+
+        this.wave = 0;
+        this.enemiesPerWave = 10;
+        this.enemiesSpawnedThisWave = 0;
+        this.enemiesLeftInWave = 0;
+        this.waveSpawnTimer = null;
+
+        this.isMeteorFalling = false;
+        this.lastPoisonPoolTime = 0;
 
         this.add.rectangle(WIDTH/2, HEIGHT/2, WIDTH, HEIGHT, 0x16202a);
         this.setupGrid();
@@ -173,24 +196,85 @@ class GameScene extends Phaser.Scene {
 
         this.tutorial = new TutorialManager(this, this.scene.get('UIScene'));
         this.startGame();
+
+        window.addEventListener('keydown', (event) => {
+             if (!this.gameStarted || this.isGameOver) return;
+            const key = event.key.toUpperCase();
+            switch(key) {
+                case 'M':
+                    this.mana += 9999;
+                    this.showFloatingText(WIDTH/2, HEIGHT/2, '+9999 MANA!', '#00ff00', -20, 1000, 32);
+                    break;
+                case 'F': this.spawnCheatTower('fire', 10); break;
+                case 'I': this.spawnCheatTower('ice', 10); break;
+                case 'L': this.spawnCheatTower('lightning', 10); break;
+                case 'P': this.spawnCheatTower('poison', 10); break;
+                case 'A': this.spawnCheatTower('arrow', 10); break;
+                case 'N': this.spawnCheatTower('mana', 10); break;
+                case 'B': for(let i=0; i<15; i++) { this.spawnTestEnemy(300); } break;
+            }
+        });
     }
     startGame() {
         this.physics.resume();
-        this.spawnTimer = this.time.addEvent({ delay: ENEMY_SPAWN_RATE, loop: true, callback: this.spawnEnemy, callbackScope: this });
         this.towerAttackTimer = this.time.addEvent({ delay: 200, loop: true, callback: this.updateTowerAttacks, callbackScope: this });
-        this.manaRegenTimer = this.time.addEvent({ delay: 1000, loop: true, callback: () => { this.mana += MANA_REGEN_RATE; } });
+        this.manaRegenTimer = this.time.addEvent({ delay: 1000, loop: true, callback: this.passiveManaGen, callbackScope: this });
         this.bossTimer = this.time.addEvent({ delay: 1000, callback: this.updateBossTimer, callbackScope: this, loop: true });
         this.enemyScalingTimer = this.time.addEvent({ delay: 10000, callback: this.scaleEnemyHp, callbackScope: this, loop: true });
         this.gameStarted = true;
         this.tutorial.start();
     }
+    startNextWave() {
+        if (this.isGameOver || this.bossSpawned) return;
+        this.wave++;
+        this.enemiesPerWave = 10 + this.wave;
+        this.enemiesSpawnedThisWave = 0;
+        this.enemiesLeftInWave = this.enemiesPerWave;
+
+        this.waveSpawnTimer = this.time.addEvent({
+            delay: ENEMY_SPAWN_INTERVAL,
+            callback: () => {
+                if (this.enemiesSpawnedThisWave < this.enemiesPerWave) {
+                    this.spawnEnemyForWave();
+                    this.enemiesSpawnedThisWave++;
+                } else {
+                    this.waveSpawnTimer.remove();
+                }
+            },
+            callbackScope: this,
+            loop: true
+        });
+    }
+
+    spawnEnemyForWave() {
+        let enemyTypeChance = Math.random();
+        if (this.wave > 10 && this.loop > 0 && enemyTypeChance < 0.15) {
+            this.spawnMediumEnemy();
+        } else if (this.wave > 8 && enemyTypeChance < 0.25) {
+            this.spawnManaEnemy();
+        } else if (this.wave > 5 && enemyTypeChance < 0.40) {
+            this.spawnSpeedyEnemy();
+        } else {
+            this.spawnEnemy();
+        }
+    }
+
+    passiveManaGen(){
+        this.mana += MANA_REGEN_RATE;
+        this.towers.forEach(tower => {
+            if (tower.type === 'mana' && tower.level >= 5) {
+                const manaPerSec = MANA_TOWER_PASSIVE_GEN[tower.level] || MANA_TOWER_PASSIVE_GEN[8];
+                this.mana += manaPerSec;
+                this.showFloatingText(tower.x, tower.y - 40, `+${manaPerSec}`, '#9966ff', -20, 600, 18);
+            }
+        });
+    }
     freezeGame(pauseTimers = true) {
         this.physics.pause(); this.tweens.pauseAll();
         if (pauseTimers) {
-            if (this.spawnTimer) this.spawnTimer.paused = true;
+            if (this.waveSpawnTimer) this.waveSpawnTimer.paused = true;
             if (this.towerAttackTimer) this.towerAttackTimer.paused = true;
             if (this.manaRegenTimer) this.manaRegenTimer.paused = true;
-            if (this.bossSpawnTimer) this.bossSpawnTimer.paused = true;
             if (this.bossTimer) this.bossTimer.paused = true;
             if (this.enemyScalingTimer) this.enemyScalingTimer.paused = true;
         }
@@ -198,17 +282,16 @@ class GameScene extends Phaser.Scene {
     unfreezeGame(resumeTimers = true) {
         this.physics.resume(); this.tweens.resumeAll();
          if (resumeTimers) {
-            if (this.spawnTimer) this.spawnTimer.paused = false;
+            if (this.waveSpawnTimer) this.waveSpawnTimer.paused = false;
             if (this.towerAttackTimer) this.towerAttackTimer.paused = false;
             if (this.manaRegenTimer) this.manaRegenTimer.paused = false;
-            if (this.bossSpawnTimer) this.bossSpawnTimer.paused = false;
             if (this.bossTimer) this.bossTimer.paused = false;
             if (this.enemyScalingTimer) this.enemyScalingTimer.paused = false;
          }
     }
     scaleEnemyHp() {
         if (this.isGameOver) return;
-        this.enemyHpMultiplier += 0.10; // ADJUSTED: Slower HP scaling
+        this.enemyHpMultiplier += 0.08;
     }
     updateBossTimer() {
         if (this.isGameOver || this.bossSpawned) return;
@@ -216,34 +299,45 @@ class GameScene extends Phaser.Scene {
         if (this.timeUntilBoss <= 0) {
             this.spawnBoss();
             this.timeUntilBoss = 0;
+            if (this.waveSpawnTimer) this.waveSpawnTimer.remove();
         }
     }
     spawnBoss() {
-        this.bossLevel++;
         this.bossSpawned = true;
-        this.spawnTimer.paused = true;
+        this.enemyScalingTimer.paused = true;
         const startPoint = this.pathPoints[0];
         const boss = this.add.rectangle(startPoint.x, startPoint.y, 80, 90, 0xcc00ff).setOrigin(0.5).setStrokeStyle(4, 0xffffff);
-        boss.hp = ENEMY_BASE_HP * 100 * (1 + this.bossLevel * 0.75);
+        boss.hp = BOSS_BASE_HP * (1 + this.loop * 0.5);
         boss.maxHp = boss.hp;
         boss.speed = ENEMY_BASE_SPEED * 0.4;
         boss.isDead = false; boss.progress = 0; boss.isBoss = true;
+        boss.originalFillColor = boss.fillColor;
         boss.hpText = this.add.text(boss.x, boss.y - 60, `${Math.round(boss.hp)}`, { fontSize: '28px', color: '#ffffff', fontStyle: 'bold', stroke: '#000', strokeThickness: 5, fontFamily: "'Poppins', Arial, sans-serif" }).setOrigin(0.5).setDepth(150);
         this.enemies.add(boss); this.moveEnemyAlongPath(boss); this.boss = boss;
-        this.spawnMediumEnemies();
-        this.bossSpawnTimer = this.time.addEvent({ delay: 5000, loop: true, callback: this.spawnMediumEnemies, callbackScope: this });
     }
     killEnemy(enemy){
-        if(!enemy || enemy.isDead)return; enemy.isDead = true;
+        if(!enemy || enemy.isDead)return;
+        this.tweens.killTweensOf(enemy);
+        enemy.isDead = true;
+        this.enemiesLeftInWave--;
+
         if (enemy.isBoss) {
-            this.score += 200; this.mana += MANA_PER_KILL * 5;
-            if (this.bossSpawnTimer) { this.bossSpawnTimer.remove(); this.bossSpawnTimer = null; }
-            this.spawnTimer.paused = false;
+            this.score += 200 * (this.loop + 1);
+            this.mana += MANA_PER_KILL * 10;
+            this.loop++;
+
             this.boss = null;
             this.bossSpawned = false;
-            this.timeUntilBoss = BOSS_SPAWN_TIME; // Reset timer
+            this.timeUntilBoss = BOSS_SPAWN_TIME;
+            this.enemyScalingTimer.paused = false;
+            this.startNextWave();
+
         } else if (enemy.isMedium) {
-            this.score += 3; this.mana += MEDIUM_MANA_REWARD;
+            this.score += 5; this.mana += MEDIUM_MANA_REWARD;
+        } else if (enemy.isSpeedy) {
+            this.score += 2; this.mana += MANA_PER_KILL / 2;
+        } else if (enemy.isMana) {
+            this.score += 1; this.mana += MANA_ENEMY_REWARD;
         } else {
             this.score += 1; this.mana += MANA_PER_KILL;
         }
@@ -252,6 +346,10 @@ class GameScene extends Phaser.Scene {
         this.tweens.add({ targets: targetsToFade, alpha: 0, scale: 0.5, duration: 200,
             onComplete: () => { if (enemy) { if (enemy.hpText) enemy.hpText.destroy(); enemy.destroy(); } }
         });
+
+        if (this.enemiesLeftInWave <= 0 && !this.bossSpawned) {
+             this.time.delayedCall(1000, this.startNextWave, [], this);
+        }
     }
     update(time, delta){
         if (this.isGameOver || !this.gameStarted) return;
@@ -273,8 +371,23 @@ class GameScene extends Phaser.Scene {
                 if (enemy && !enemy.isDead && Phaser.Math.Distance.Between(zone.x, zone.y, enemy.x, enemy.y) < zone.radius) {
                     if (!enemy.lastFireTick) enemy.lastFireTick = 0;
                     if (now - enemy.lastFireTick > 500) {
-                        enemy.lastFireTick = now; enemy.hp -= ULTIMATE_FIRE_DMG;
-                        this.showFloatingText(enemy.x, enemy.y, ULTIMATE_FIRE_DMG, '#ff6600');
+                        enemy.lastFireTick = now; enemy.hp -= zone.damage;
+                        this.showFloatingText(enemy.x, enemy.y, Math.round(zone.damage), '#ff6600');
+                        if (enemy.hp <= 0) this.killEnemy(enemy);
+                    }
+                }
+            });
+        });
+
+        this.poisonPools.forEach(pool => {
+            if(!pool.visual.active) return;
+            this.enemies.getChildren().forEach(enemy => {
+                if (enemy && !enemy.isDead && Phaser.Math.Distance.Between(pool.x, pool.y, enemy.x, enemy.y) < pool.radius) {
+                    if (!enemy.lastPoisonPoolTick) enemy.lastPoisonPoolTick = 0;
+                    if (now - enemy.lastPoisonPoolTick > 500) {
+                        enemy.lastPoisonPoolTick = now;
+                        enemy.hp -= pool.damage;
+                        this.showFloatingText(enemy.x, enemy.y, Math.round(pool.damage), '#8fce00');
                         if (enemy.hp <= 0) this.killEnemy(enemy);
                     }
                 }
@@ -282,9 +395,25 @@ class GameScene extends Phaser.Scene {
         });
     }
     onEnemyReachBase(enemy){
-        if(!enemy||enemy.isDead)return; enemy.isDead=true;
-        if (enemy.hpText) enemy.hpText.destroy(); enemy.destroy();
-        this.playerHP--; if(this.playerHP<=0)this.loseGame();
+        if(!enemy||enemy.isDead)return;
+        this.tweens.killTweensOf(enemy);
+        enemy.isDead=true;
+        this.enemiesLeftInWave--;
+
+        if (enemy.isBoss) {
+            this.playerHP -= 5;
+        } else {
+            this.playerHP--;
+        }
+
+        if (enemy.hpText) enemy.hpText.destroy();
+        enemy.destroy();
+
+        if(this.playerHP<=0)this.loseGame();
+
+        if (this.enemiesLeftInWave <= 0 && !this.bossSpawned) {
+             this.time.delayedCall(1000, this.startNextWave, [], this);
+        }
     }
     endGame() {
         if (this.isGameOver) return;
@@ -296,6 +425,7 @@ class GameScene extends Phaser.Scene {
     loseGame(){ this.endGame(); }
     setupGrid(){
         this.grid = Array(GRID_ROWS).fill(null).map(() => Array(GRID_COLS).fill(null));
+        this.gridHighlights = this.add.group();
         this.add.rectangle(WIDTH/2, GRID_Y + GRID_H/2, GRID_W+20, GRID_H+20, 0x0f1720).setStrokeStyle(3, 0x2b3942);
         for(let r=0;r<GRID_ROWS;r++) { for(let c=0;c<GRID_COLS;c++) {
             this.add.rectangle(GRID_X+c*CELL_SIZE+CELL_SIZE/2, GRID_Y+r*CELL_SIZE+CELL_SIZE/2, CELL_SIZE-TILE_PADDING, CELL_SIZE-TILE_PADDING, 0x0a2533).setStrokeStyle(2, 0x24414e);
@@ -310,9 +440,37 @@ class GameScene extends Phaser.Scene {
         for(let i=0;i<this.pathPoints.length-1;i++){ const d=Phaser.Math.Distance.Between(this.pathPoints[i].x,this.pathPoints[i].y,this.pathPoints[i+1].x,this.pathPoints[i+1].y); this.segmentLengths.push(d); this.totalPathLength+=d; }
     }
     setupInputHandling(){
-        this.input.on('dragstart', (p, go) => go.setScale(1.1).setDepth(100));
-        this.input.on('drag', (p, go, dx, dy) => { go.x = dx; go.y = dy; });
-        this.input.on('dragend', (p, go) => { go.setScale(1.0).setDepth(1); this.tryPlaceTowerFromSprite(go); });
+        this.input.on('dragstart', (p, go) => {
+            go.setScale(1.1).setDepth(100);
+            const draggedTower = this.findTowerBySprite(go);
+            if(draggedTower) {
+                draggedTower.label.setDepth(101);
+                this.towers.forEach(t => {
+                    if (t !== draggedTower && this.canMerge(draggedTower, t)) {
+                        const h = this.add.graphics({lineStyle: {width: 5, color: 0xffff00, alpha: 1}});
+                        h.strokeRect(t.sprite.x - t.sprite.width/2 -3, t.sprite.y - t.sprite.height/2 -3, t.sprite.width + 6, t.sprite.height + 6).setDepth(99);
+                        this.gridHighlights.add(h);
+                    }
+                });
+            }
+        });
+        this.input.on('drag', (p, go, dx, dy) => {
+            const draggedTower = this.findTowerBySprite(go);
+            if (draggedTower) {
+                draggedTower.sprite.x = dx;
+                draggedTower.sprite.y = dy;
+                draggedTower.label.x = dx;
+                draggedTower.label.y = dy + (CELL_SIZE/2) - 24;
+            }
+        });
+        this.input.on('dragend', (p, go) => {
+            go.setScale(1.0).setDepth(1);
+            const draggedTower = this.findTowerBySprite(go);
+            if(draggedTower) draggedTower.label.setDepth(2);
+
+            this.gridHighlights.clear(true, true);
+            this.tryPlaceTowerFromSprite(go);
+        });
     }
     doSummon(){
         if(this.isGameOver || this.time.now - this.lastSummon < 500) return;
@@ -323,17 +481,37 @@ class GameScene extends Phaser.Scene {
         const target=randChoice(empties); this.placeTowerAtCell(target.r, target.c, randChoice(TOWER_TYPES), 1);
         this.tutorial.onSummonPressed();
     }
-    getCurrentSummonCost() { return BASE_SUMMON_COST + (this.summonCount * (this.summonCount + 1)); }
+    spawnCheatTower(type, level) {
+        const empties = []; for(let r=0;r<GRID_ROWS;r++) { for(let c=0;c<GRID_COLS;c++) { if(!this.grid[r][c]) empties.push({r,c}); } }
+        if(empties.length === 0) return;
+        const target=empties[0];
+        this.placeTowerAtCell(target.r, target.c, type, level);
+    }
+    spawnTestEnemy(hp) {
+        const startPoint = this.pathPoints[0];
+        const enemy = this.add.rectangle(startPoint.x, startPoint.y, 30, 36, 0xff4466).setOrigin(0.5).setStrokeStyle(3, 0xffffff);
+        enemy.hp = hp;
+        enemy.maxHp = hp;
+        enemy.speed = ENEMY_BASE_SPEED;
+        enemy.isDead = false; enemy.progress = 0;
+        enemy.originalFillColor = enemy.fillColor;
+        enemy.hpText = this.add.text(enemy.x, enemy.y - 30, `${Math.round(enemy.hp)}`, { fontSize: '16px', color: '#ffffff', fontStyle: 'bold', stroke: '#000', strokeThickness: 4, fontFamily: "'Poppins', Arial, sans-serif" }).setOrigin(0.5).setDepth(150);
+        this.enemies.add(enemy);
+        this.moveEnemyAlongPath(enemy);
+    }
+    getCurrentSummonCost() {
+        return BASE_SUMMON_COST + (this.summonCount * 5);
+    }
     placeTowerAtCell(r, c, type, level){
         if(this.grid[r][c] && this.grid[r][c].tower) return;
         const cx=GRID_X+c*CELL_SIZE+CELL_SIZE/2, cy=GRID_Y+r*CELL_SIZE+CELL_SIZE/2;
         const sprite=this.add.rectangle(cx,cy,CELL_SIZE-TILE_PADDING-6,CELL_SIZE-TILE_PADDING-6,TOWER_CONFIG[type].color).setStrokeStyle(3,0x000000).setInteractive({draggable:true});
         sprite.setDepth(1);
         const label=this.add.text(cx,cy+(CELL_SIZE/2)-24,`L${level}`,{fontSize:'18px',color:'#000', fontFamily:"'Poppins', Arial, sans-serif", fontStyle:'bold'}).setOrigin(0.5).setDepth(2);
-        let towerDmg=TOWER_CONFIG[type].baseDmg*Math.pow(1.4,level-1);
-        let towerAttackRate=Math.max(300-(level-1)*20,150);
-        const tower={sprite,label,r,c,x:cx,y:cy,type,level,dmg:towerDmg,attackRate:towerAttackRate,lastAttack:0};
+        const tower={sprite,label,r,c,x:cx,y:cy,type,level, lastAttack:0, isRapidFire: false, rapidFireTween: null, buffTween: null};
         this.grid[r][c]=tower; this.towers.push(tower);
+        this.updateTowerStats(tower);
+        if(type === 'arrow') this.updateArrowTowerBuffs();
     }
     tryPlaceTowerFromSprite(sprite) {
         const draggedTower = this.findTowerBySprite(sprite); if (!draggedTower) { sprite.destroy(); return; }
@@ -346,6 +524,7 @@ class GameScene extends Phaser.Scene {
     }
     canMerge(t1,t2){return t1.type===t2.type&&t1.level===t2.level;}
     mergeTowers(t1,t2,tr,tc){
+        const oldType = t1.type;
         this.grid[t1.r][t1.c] = null;
         if (t1.type === 'mana' || t2.type === 'mana') {
             const manaLevel = Math.max(t1.level, t2.level);
@@ -355,46 +534,146 @@ class GameScene extends Phaser.Scene {
         }
         this.destroyTower(t1); this.destroyTower(t2);
         const newLevel=t1.level+1; let newType;
-        if (Math.random() < 0.3) {
+        if (Math.random() < 0.5) {
             newType = randChoice(TOWER_TYPES);
             this.showFloatingText(GRID_X+tc*CELL_SIZE+CELL_SIZE/2, GRID_Y+tr*CELL_SIZE+CELL_SIZE/2 - 40, 'TYPE CHANGED!', '#ff4444', -25, 1000, 16);
-        } else { newType = t1.type; }
+        } else { newType = oldType; }
         this.placeTowerAtCell(tr,tc,newType,newLevel);
         const fx=this.add.circle(GRID_X+tc*CELL_SIZE+CELL_SIZE/2, GRID_Y+tr*CELL_SIZE+CELL_SIZE/2, 40, 0xffffff, 0.8);
         this.tweens.add({targets:fx,scale:2.5,alpha:0,duration:300, onComplete:()=>fx.destroy()});
+
+        if (oldType === 'arrow' || newType === 'arrow') {
+            this.updateArrowTowerBuffs();
+        }
     }
-    returnTowerToOriginalPosition(t){ t.sprite.x=t.x; t.sprite.y=t.y; t.label.x=t.x; t.label.y=t.y+(CELL_SIZE/2)-24; }
+    returnTowerToOriginalPosition(t){
+        t.sprite.x=t.x; t.sprite.y=t.y;
+        t.label.x = t.x; t.label.y = t.y + (CELL_SIZE/2) - 24;
+    }
     findTowerBySprite(s){return this.towers.find(t=>t.sprite===s);}
     destroyTower(t){
-        if(t.sprite)t.sprite.destroy(); if(t.label)t.label.destroy();
+        const type = t.type;
+        if (t.rapidFireTween) t.rapidFireTween.stop();
+        if (t.buffTween) t.buffTween.stop();
+        if(t.sprite)t.sprite.destroy();
+        if(t.label)t.label.destroy();
         this.grid[t.r][t.c]=null;
         const i=this.towers.indexOf(t); if(i>=0)this.towers.splice(i,1);
+        if(type === 'arrow') this.updateArrowTowerBuffs();
+    }
+    updateTowerStats(tower) {
+        tower.baseDmg = TOWER_CONFIG[tower.type].baseDmg * Math.pow(1.4, tower.level-1);
+        tower.baseAttackRate = Math.max(300 - (tower.level-1) * 20, 150);
+        tower.dmg = tower.baseDmg;
+        tower.attackRate = tower.baseAttackRate;
+    }
+    updateArrowTowerBuffs() {
+        const arrowTowers = this.towers.filter(t => t.type === 'arrow');
+        arrowTowers.forEach(t => {
+            this.updateTowerStats(t);
+            if (t.buffTween) {
+                t.buffTween.stop();
+                t.sprite.setAlpha(1.0);
+            }
+            t.sprite.setStrokeStyle(3, 0x000000);
+            t.buffTween = null;
+        });
+
+        const checked = new Set();
+        for (const tower of arrowTowers) {
+            if (checked.has(tower)) continue;
+
+            const cluster = [];
+            const queue = [tower];
+            checked.add(tower);
+
+            while(queue.length > 0) {
+                const current = queue.shift();
+                cluster.push(current);
+                const neighbors = [
+                    {r: current.r - 1, c: current.c}, {r: current.r + 1, c: current.c},
+                    {r: current.r, c: current.c - 1}, {r: current.r, c: current.c + 1}
+                ];
+                for (const n of neighbors) {
+                    if (n.r >= 0 && n.r < GRID_ROWS && n.c >= 0 && n.c < GRID_COLS) {
+                        const neighborTower = this.grid[n.r][n.c];
+                        if (neighborTower && neighborTower.type === 'arrow' && !checked.has(neighborTower)) {
+                            checked.add(neighborTower);
+                            queue.push(neighborTower);
+                        }
+                    }
+                }
+            }
+
+            if (cluster.length > 1) {
+                const totalLevel = cluster.reduce((sum, t) => sum + t.level, 0);
+                const damageBonus = 1 + (cluster.length - 1) * 0.15 + totalLevel * 0.05;
+                const speedBonus = 1 - Math.min(0.5, (cluster.length - 1) * 0.05 + totalLevel * 0.01);
+
+                for (const t of cluster) {
+                    t.dmg = t.baseDmg * damageBonus;
+                    t.attackRate = t.baseAttackRate * speedBonus;
+                    if (!t.buffTween) {
+                         t.sprite.setStrokeStyle(3, 0xffffff);
+                         t.buffTween = this.tweens.add({
+                            targets: t.sprite,
+                            alpha: 0.7,
+                            duration: 500,
+                            yoyo: true,
+                            repeat: -1
+                         });
+                    }
+                }
+            }
+        }
     }
     spawnEnemy(){
-        if(this.isGameOver)return; const startPoint=this.pathPoints[0];
+        const startPoint=this.pathPoints[0];
         const enemy=this.add.rectangle(startPoint.x,startPoint.y,30,36,0xff4466).setOrigin(0.5).setStrokeStyle(3, 0xffffff);
-        enemy.hp=(ENEMY_BASE_HP + Math.floor(this.score * 0.1)) * this.enemyHpMultiplier;
+        enemy.hp=(ENEMY_BASE_HP + Math.floor(this.score * 0.05)) * this.enemyHpMultiplier;
         enemy.maxHp = enemy.hp;
-        enemy.speed = ENEMY_BASE_SPEED; // No more speed increase
+        enemy.speed = ENEMY_BASE_SPEED;
         enemy.isDead=false; enemy.progress=0; enemy.isMedium=false; enemy.isBoss=false;
+        enemy.isSpeedy = false; enemy.isMana = false;
+        enemy.originalFillColor = enemy.fillColor;
         enemy.hpText = this.add.text(enemy.x, enemy.y - 30, `${Math.round(enemy.hp)}`, { fontSize: '16px', color: '#ffffff', fontStyle: 'bold', stroke: '#000', strokeThickness: 4, fontFamily: "'Poppins', Arial, sans-serif" }).setOrigin(0.5).setDepth(150);
         this.enemies.add(enemy); this.moveEnemyAlongPath(enemy);
     }
-    spawnMediumEnemies() {
-        if (this.isGameOver || !this.boss || this.boss.isDead) return;
-        for (let i = 0; i < 3; i++) {
-            this.time.delayedCall(i * 500, () => {
-                if (this.isGameOver) return;
-                const startPoint = this.pathPoints[0];
-                const mediumEnemy = this.add.rectangle(startPoint.x, startPoint.y, 40, 46, 0xff8800).setOrigin(0.5).setStrokeStyle(3, 0xffffff);
-                mediumEnemy.hp = MEDIUM_ENEMY_HP * this.enemyHpMultiplier;
-                mediumEnemy.maxHp = mediumEnemy.hp;
-                mediumEnemy.speed = MEDIUM_ENEMY_SPEED;
-                mediumEnemy.isDead = false; mediumEnemy.progress = 0; mediumEnemy.isMedium = true; mediumEnemy.isBoss = false;
-                mediumEnemy.hpText = this.add.text(mediumEnemy.x, mediumEnemy.y - 40, `${Math.round(mediumEnemy.hp)}`, { fontSize: '20px', color: '#ffffff', fontStyle: 'bold', stroke: '#000', strokeThickness: 4, fontFamily: "'Poppins', Arial, sans-serif" }).setOrigin(0.5).setDepth(150);
-                this.enemies.add(mediumEnemy); this.moveEnemyAlongPath(mediumEnemy);
-            });
-        }
+    spawnMediumEnemy() {
+        const startPoint = this.pathPoints[0];
+        const mediumEnemy = this.add.rectangle(startPoint.x, startPoint.y, 40, 46, 0xff8800).setOrigin(0.5).setStrokeStyle(3, 0xffffff);
+        mediumEnemy.hp = (MEDIUM_ENEMY_HP + Math.floor(this.score * 0.05)) * this.enemyHpMultiplier;
+        mediumEnemy.maxHp = mediumEnemy.hp;
+        mediumEnemy.speed = MEDIUM_ENEMY_SPEED;
+        mediumEnemy.isDead = false; mediumEnemy.progress = 0; mediumEnemy.isMedium = true; mediumEnemy.isBoss = false;
+        mediumEnemy.isSpeedy = false; mediumEnemy.isMana = false;
+        mediumEnemy.originalFillColor = mediumEnemy.fillColor;
+        mediumEnemy.hpText = this.add.text(mediumEnemy.x, mediumEnemy.y - 40, `${Math.round(mediumEnemy.hp)}`, { fontSize: '20px', color: '#ffffff', fontStyle: 'bold', stroke: '#000', strokeThickness: 4, fontFamily: "'Poppins', Arial, sans-serif" }).setOrigin(0.5).setDepth(150);
+        this.enemies.add(mediumEnemy); this.moveEnemyAlongPath(mediumEnemy);
+    }
+    spawnSpeedyEnemy() {
+        const startPoint = this.pathPoints[0];
+        const speedyEnemy = this.add.rectangle(startPoint.x, startPoint.y, 25, 30, 0x33ccff).setOrigin(0.5).setStrokeStyle(2, 0xffffff);
+        speedyEnemy.hp = (SPEEDY_ENEMY_HP + Math.floor(this.score * 0.05)) * this.enemyHpMultiplier;
+        speedyEnemy.maxHp = speedyEnemy.hp;
+        speedyEnemy.speed = SPEEDY_ENEMY_SPEED;
+        speedyEnemy.isDead = false; speedyEnemy.progress = 0; speedyEnemy.isMedium = false; speedyEnemy.isBoss = false;
+        speedyEnemy.isSpeedy = true; speedyEnemy.isMana = false;
+        speedyEnemy.originalFillColor = speedyEnemy.fillColor;
+        speedyEnemy.hpText = this.add.text(speedyEnemy.x, speedyEnemy.y - 25, `${Math.round(speedyEnemy.hp)}`, { fontSize: '14px', color: '#ffffff', fontStyle: 'bold', stroke: '#000', strokeThickness: 3, fontFamily: "'Poppins', Arial, sans-serif" }).setOrigin(0.5).setDepth(150);
+        this.enemies.add(speedyEnemy); this.moveEnemyAlongPath(speedyEnemy);
+    }
+    spawnManaEnemy() {
+        const startPoint = this.pathPoints[0];
+        const manaEnemy = this.add.rectangle(startPoint.x, startPoint.y, 35, 42, 0xcc99ff).setOrigin(0.5).setStrokeStyle(3, 0xffffff);
+        manaEnemy.hp = (MANA_ENEMY_HP + Math.floor(this.score * 0.05)) * this.enemyHpMultiplier;
+        manaEnemy.maxHp = manaEnemy.hp;
+        manaEnemy.speed = ENEMY_BASE_SPEED * 0.9;
+        manaEnemy.isDead = false; manaEnemy.progress = 0; manaEnemy.isMedium = false; manaEnemy.isBoss = false;
+        manaEnemy.isSpeedy = false; manaEnemy.isMana = true;
+        manaEnemy.originalFillColor = manaEnemy.fillColor;
+        manaEnemy.hpText = this.add.text(manaEnemy.x, manaEnemy.y - 35, `${Math.round(manaEnemy.hp)}`, { fontSize: '18px', color: '#ffffff', fontStyle: 'bold', stroke: '#000', strokeThickness: 4, fontFamily: "'Poppins', Arial, sans-serif" }).setOrigin(0.5).setDepth(150);
+        this.enemies.add(manaEnemy); this.moveEnemyAlongPath(manaEnemy);
     }
     moveEnemyAlongPath(enemy){
         if(!enemy||enemy.isDead)return; enemy.pathSegment=0; this.moveEnemyToNextSegment(enemy);
@@ -421,29 +700,38 @@ class GameScene extends Phaser.Scene {
         const aliveEnemies=this.enemies.getChildren().filter(e=>e&&!e.isDead); if(aliveEnemies.length===0)return;
         const now=this.time.now;
         for(let tower of this.towers){
-            if(now-tower.lastAttack<tower.attackRate)continue;
+            if (tower.isRapidFire && now - tower.lastAttack < tower.attackRate / 3) continue;
+            if(!tower.isRapidFire && now - tower.lastAttack < tower.attackRate) continue;
+
             let bestTarget=null,bestProgress=-1;
             for(let enemy of aliveEnemies){ if(enemy.progress>bestProgress){ bestProgress=enemy.progress; bestTarget=enemy; }}
             if(bestTarget){ this.towerAttack(tower,bestTarget); tower.lastAttack=now; }
         }
     }
     towerAttack(tower,enemy){
+        if (tower.level >= 5 && Math.random() < (TOWER_CONFIG[tower.type].lv5Chance + (tower.level - 5) * 0.05) ) {
+             const specialTriggered = this.applyLv5Special(tower, enemy);
+             if (specialTriggered) return;
+        }
+
         const projectile = this.projectilePool.get(tower.x, tower.y); if (!projectile) return;
         projectile.setActive(true).setVisible(true).setTint(TOWER_CONFIG[tower.type].color);
         this.tweens.add({
             targets: projectile,
             x: enemy.x,
             y: enemy.y,
-            duration: PROJECTILE_SPEED, // Use the constant for speed
+            duration: PROJECTILE_SPEED,
             onComplete: () => { if (projectile.active) { this.projectilePool.killAndHide(projectile); } }
         });
         let damage=Math.round(tower.dmg*(0.9+Math.random()*0.2)); const config=TOWER_CONFIG[tower.type];
-        if(Math.random() < (config.specialChance+(tower.level-1)*0.05)){
+        let critChance = (tower.type === 'arrow' && tower.isRapidFire) ? 0.75 : config.specialChance;
+
+        if(Math.random() < (critChance + (tower.level-1)*0.05)){
             if(tower.type==='arrow'){
                 damage*=2; this.showFloatingText(enemy.x, enemy.y, 'CRIT!', '#ffdd00', -25, 500);
             }else{ this.applySpecialEffect(tower,enemy); }
         }
-        enemy.hp-=damage; this.showFloatingText(enemy.x, enemy.y, damage, '#ffffff');
+        enemy.hp-=damage; this.showFloatingText(enemy.x, enemy.y, Math.round(damage), '#ffffff');
         if(enemy.hp<=0)this.killEnemy(enemy);
     }
     showFloatingText(x, y, message, color, yOffset = -40, duration = 800, fontSize = 22) {
@@ -461,6 +749,10 @@ class GameScene extends Phaser.Scene {
         if (this.isGameOver || this.time.now - this.lastUltimateTime < ULTIMATE_COOLDOWN) return;
         this.lastUltimateTime = this.time.now; this.ultimateReady = false;
         this.scene.get('UIScene').showUltimateText(); this.cameras.main.shake(200, 0.015);
+
+        const currentExplosionDmg = ULTIMATE_EXPLOSION_DMG * (1 + this.loop * 0.5);
+        const currentFireDmg = ULTIMATE_FIRE_DMG * (1 + this.loop * 0.4);
+
         const aliveEnemies = this.enemies.getChildren().filter(e => e && !e.isDead);
         aliveEnemies.forEach(target => {
             const explosionX = target.x, explosionY = target.y;
@@ -469,7 +761,7 @@ class GameScene extends Phaser.Scene {
             aliveEnemies.forEach(enemyInRadius => {
                 const distance = Phaser.Math.Distance.Between(explosionX, explosionY, enemyInRadius.x, enemyInRadius.y);
                 if (distance < ULTIMATE_EXPLOSION_RADIUS) {
-                    const damage = Math.round(ULTIMATE_EXPLOSION_DMG * (1 - (distance / ULTIMATE_EXPLOSION_RADIUS)));
+                    const damage = Math.round(currentExplosionDmg * (1 - (distance / ULTIMATE_EXPLOSION_RADIUS)));
                     enemyInRadius.hp -= damage;
                     this.showFloatingText(enemyInRadius.x, enemyInRadius.y, damage, '#ffdd00');
                     if (enemyInRadius.hp <= 0) this.killEnemy(enemyInRadius);
@@ -477,7 +769,7 @@ class GameScene extends Phaser.Scene {
             });
             const fireZoneVisual = this.add.graphics({fillStyle: { color: 0xff6600, alpha: 0.3 }, lineStyle: { width: 3, color: 0xff0000, alpha: 0.7 } }).setDepth(5);
             fireZoneVisual.fillCircle(explosionX, explosionY, ULTIMATE_EXPLOSION_RADIUS).strokeCircle(explosionX, explosionY, ULTIMATE_EXPLOSION_RADIUS);
-            const newZone = { x: explosionX, y: explosionY, radius: ULTIMATE_EXPLOSION_RADIUS, visual: fireZoneVisual, endTime: this.time.now + ULTIMATE_FIRE_ZONE_DURATION };
+            const newZone = { x: explosionX, y: explosionY, radius: ULTIMATE_EXPLOSION_RADIUS, damage: currentFireDmg, visual: fireZoneVisual, endTime: this.time.now + ULTIMATE_FIRE_ZONE_DURATION };
             this.fireZones.push(newZone);
             this.tweens.add({ targets: fireZoneVisual, alpha: 0, duration: 500, delay: ULTIMATE_FIRE_ZONE_DURATION - 500, onComplete: () => { fireZoneVisual.destroy(); this.fireZones = this.fireZones.filter(z => z !== newZone); } });
         });
@@ -491,10 +783,180 @@ class GameScene extends Phaser.Scene {
             case 'poison': this.applyPoison(enemy, 4 + tower.level, 2500); break;
         }
     }
+    applyLv5Special(tower, enemy) {
+        switch(tower.type) {
+            case 'fire': return this.lv5Fire(tower);
+            case 'poison': return this.lv5Poison(tower);
+            case 'ice': return this.lv5Ice(tower, enemy);
+            case 'lightning': return this.lv5Lightning(tower, enemy);
+            case 'arrow': return this.lv5Arrow(tower);
+        }
+        return false;
+    }
+    lv5Fire(tower) {
+        if (this.isMeteorFalling) return false;
+        this.isMeteorFalling = true;
+
+        const randomEnemy = randChoice(this.enemies.getChildren().filter(e => e && !e.isDead));
+        if (!randomEnemy) { this.isMeteorFalling = false; return false; }
+
+        const meteor = this.add.circle(randomEnemy.x, randomEnemy.y - 400, 20, 0xff6a00).setDepth(180);
+        this.tweens.add({
+            targets: meteor, y: randomEnemy.y, duration: 500, ease: 'Cubic.easeIn',
+            onComplete: () => {
+                this.cameras.main.shake(100, 0.005);
+                const explosionFx = this.add.circle(randomEnemy.x, randomEnemy.y, 8, 0xffdd00, 0.9).setDepth(180);
+                this.tweens.add({ targets: explosionFx, radius: 80, alpha: 0, duration: 300, ease: 'Quad.easeOut', onComplete: () => explosionFx.destroy() });
+
+                const damage = (tower.dmg * 2.5) * (1 + (tower.level - 5) * 0.2);
+                this.enemies.getChildren().forEach(e => {
+                    if (e && !e.isDead && Phaser.Math.Distance.Between(randomEnemy.x, randomEnemy.y, e.x, e.y) < 80) {
+                        e.hp -= damage;
+                        this.showFloatingText(e.x, e.y, Math.round(damage), '#ff6a00');
+                        if (e.hp <= 0) this.killEnemy(e);
+                    }
+                });
+                meteor.destroy();
+                this.isMeteorFalling = false;
+            }
+        });
+        return true;
+    }
+
+    lv5Poison(tower) {
+        if (this.time.now - this.lastPoisonPoolTime < 3000) return false;
+        this.lastPoisonPoolTime = this.time.now;
+
+        const frontEnemy = this.enemies.getChildren().filter(e => e && !e.isDead).sort((a,b) => b.progress - a.progress)[0];
+        if (!frontEnemy) return false;
+
+        const radius = 60;
+        const duration = 5000 + (tower.level - 5) * 500;
+        const damage = (tower.dmg * 0.5) * (1 + (tower.level - 5) * 0.2);
+        const visual = this.add.graphics({fillStyle: { color: 0x8fce00, alpha: 0.4 }}).setDepth(4);
+        visual.fillCircle(frontEnemy.x, frontEnemy.y, radius);
+        const newPool = { x: frontEnemy.x, y: frontEnemy.y, radius, damage, visual, endTime: this.time.now + duration };
+        this.poisonPools.push(newPool);
+
+        this.tweens.add({ targets: visual, alpha: 0, duration: 500, delay: duration - 500, onComplete: () => {
+            visual.destroy();
+            this.poisonPools = this.poisonPools.filter(p => p !== newPool);
+        }});
+        return true;
+    }
+
+    lv5Ice(tower, enemy) {
+        if (enemy.isBoss || enemy.isFrozen) return false;
+
+        enemy.isFrozen = true;
+        this.tweens.getTweensOf(enemy).forEach(t => t.pause());
+        enemy.setFillStyle(0xaaaaff);
+
+        const freezeDuration = 3000 + (tower.level - 5) * 200;
+        const slowDuration = 3000;
+        const shatterDamage = (tower.dmg * 1.5) * (1 + (tower.level - 5) * 0.2);
+
+        this.time.delayedCall(freezeDuration, () => {
+            if (!enemy || !enemy.active || enemy.isDead) return;
+
+            enemy.setFillStyle(enemy.originalFillColor);
+            const shatterFx = this.add.graphics({lineStyle: {width: 4, color: 0x66ccff}});
+            shatterFx.strokeCircle(enemy.x, enemy.y, 50);
+            this.tweens.add({ targets: shatterFx, alpha: 0, scale: 1.5, duration: 250, onComplete: () => shatterFx.destroy() });
+
+            this.enemies.getChildren().forEach(e => {
+                if (e && e.active && !e.isDead && Phaser.Math.Distance.Between(enemy.x, enemy.y, e.x, e.y) < 50) {
+                     e.hp -= shatterDamage;
+                    this.showFloatingText(e.x, e.y, Math.round(shatterDamage), '#66ccff');
+                    if (e.hp <= 0) this.killEnemy(e);
+                }
+            });
+
+            this.tweens.getTweensOf(enemy).forEach(t => t.resume());
+            this.applySlow(enemy, 0.5, slowDuration);
+            enemy.isFrozen = false;
+        });
+        return true;
+    }
+
+    lv5Lightning(tower, enemy) {
+        const primaryDamage = tower.dmg * 3;
+        enemy.hp -= primaryDamage;
+        this.showFloatingText(enemy.x, enemy.y, Math.round(primaryDamage), '#ffff00');
+        if (enemy.hp <= 0) this.killEnemy(enemy);
+
+        const maxChains = 3 + Math.floor((tower.level - 5) / 2);
+        const stunDuration = 500;
+
+        let lastEnemy = enemy;
+        const chainedEnemies = [enemy];
+
+        for(let i=0; i<maxChains; i++) {
+            const nearby = this.enemies.getChildren().filter(e =>
+                e && !e.isDead && !chainedEnemies.includes(e) &&
+                Phaser.Math.Distance.Between(lastEnemy.x, lastEnemy.y, e.x, e.y) < 150
+            );
+
+            if (nearby.length > 0) {
+                const nextTarget = nearby[0];
+                const chainLine = this.add.line(0, 0, lastEnemy.x, lastEnemy.y, nextTarget.x, nextTarget.y, 0xffff66, 0.9).setLineWidth(5, 2).setDepth(150);
+                this.tweens.add({ targets: chainLine, alpha: 0, duration: 300, onComplete: () => chainLine.destroy() });
+
+                const chainDamage = tower.dmg * 0.8;
+                nextTarget.hp -= chainDamage;
+                this.showFloatingText(nextTarget.x, nextTarget.y, Math.round(chainDamage), '#ffff66');
+                if (nextTarget.hp <= 0) this.killEnemy(nextTarget);
+
+                if (!nextTarget.isStunned) {
+                    nextTarget.isStunned = true;
+                    this.tweens.getTweensOf(nextTarget).forEach(t => t.pause());
+                    this.time.delayedCall(stunDuration, () => {
+                         if (nextTarget && nextTarget.active && !nextTarget.isDead) {
+                             this.tweens.getTweensOf(nextTarget).forEach(t => t.resume());
+                             nextTarget.isStunned = false;
+                         }
+                    });
+                }
+
+                chainedEnemies.push(nextTarget);
+                lastEnemy = nextTarget;
+            } else {
+                break;
+            }
+        }
+        return true;
+    }
+
+
+    lv5Arrow(tower) {
+        if (tower.isRapidFire) return false;
+        tower.isRapidFire = true;
+        
+        if (tower.rapidFireTween) tower.rapidFireTween.stop();
+        tower.sprite.setScale(1);
+        tower.rapidFireTween = this.tweens.add({
+            targets: tower.sprite,
+            scale: 1.15,
+            duration: 250,
+            yoyo: true,
+            repeat: -1
+        });
+
+        this.time.delayedCall(5000, () => {
+            if (tower && tower.sprite) {
+                tower.isRapidFire = false;
+                if (tower.rapidFireTween) {
+                    tower.rapidFireTween.stop();
+                    tower.sprite.setScale(1);
+                }
+            }
+        });
+        return false;
+    }
     applyBurn(enemy, damagePerTick, duration){
         if(!enemy || enemy.isDead) return;
         const burnTimer = this.time.addEvent({ delay: 500, repeat: Math.floor(duration/500)-1, callback: () => {
-                if(!enemy || enemy.isDead) { burnTimer.destroy(); return; }
+                if(!enemy || !enemy.active || enemy.isDead) { burnTimer.destroy(); return; }
                 enemy.hp -= damagePerTick; this.showFloatingText(enemy.x, enemy.y, damagePerTick, '#ff6a00');
                 if(enemy.hp <= 0) this.killEnemy(enemy);
         }});
@@ -503,7 +965,7 @@ class GameScene extends Phaser.Scene {
         if(!enemy || enemy.isDead || enemy.isSlowed) return;
         enemy.isSlowed = true;
         this.tweens.getTweensOf(enemy).forEach(tween => { tween.timeScale = (1 - slowFactor); });
-        this.time.delayedCall(duration, () => { if(enemy && !enemy.isDead) { enemy.isSlowed = false; this.tweens.getTweensOf(enemy).forEach(tween => { tween.timeScale = 1; }); } });
+        this.time.delayedCall(duration, () => { if(enemy && enemy.active && !enemy.isDead) { enemy.isSlowed = false; this.tweens.getTweensOf(enemy).forEach(tween => { tween.timeScale = 1; }); } });
     }
     applyStrictChain(sourceEnemy, damage, maxTargets){
         if(!sourceEnemy || sourceEnemy.isDead) return;
@@ -522,7 +984,7 @@ class GameScene extends Phaser.Scene {
         if(!enemy || enemy.isDead || enemy.isPoisoned) return;
         enemy.isPoisoned = true;
         const poisonTimer = this.time.addEvent({ delay: 500, repeat: Math.floor(duration/500)-1, callback: () => {
-                if(!enemy || enemy.isDead) { poisonTimer.destroy(); return; }
+                if(!enemy || !enemy.active || enemy.isDead) { poisonTimer.destroy(); return; }
                 enemy.hp -= damagePerTick; this.showFloatingText(enemy.x, enemy.y, damagePerTick, '#8fce00');
                 if(enemy.hp <= 0) this.killEnemy(enemy);
             }, onComplete: () => { if(enemy && !enemy.isDead) enemy.isPoisoned = false; }
@@ -540,7 +1002,6 @@ class UIScene extends Phaser.Scene {
         this.gameScene = this.scene.get('GameScene');
         this.fontStyle = { fontFamily: "'Poppins', Arial, sans-serif", fontSize: '32px', color: '#fff', fontStyle: '700' };
 
-        // --- UI พื้นฐานในเกม (เหมือนเดิม) ---
         const summonBtnBg = this.add.graphics();
         this.summonBtn = this.add.zone(WIDTH/2-140, HEIGHT-110, 280, 80).setOrigin(0).setInteractive();
         this.summonText = this.add.text(WIDTH/2, HEIGHT-70, `SUMMON`, this.fontStyle).setOrigin(0.5);
@@ -553,16 +1014,14 @@ class UIScene extends Phaser.Scene {
         this.ultimateBtn.on('pointerdown', () => this.gameScene.castUltimate());
         this.hpText = this.add.text(30, 30, `HP: 0`, this.fontStyle).setOrigin(0,0);
         this.scoreText = this.add.text(WIDTH-30, 30, `Score: 0`, this.fontStyle).setOrigin(1,0);
+        this.waveText = this.add.text(WIDTH/2, 80, `Wave: 0`, {...this.fontStyle, fontSize: '24px'}).setOrigin(0.5,0);
         this.manaText = this.add.text(30, 80, `Mana: 0`, this.fontStyle).setOrigin(0,0);
         this.bossTimerText = this.add.text(WIDTH/2, 30, '', { ...this.fontStyle, fontSize: '28px' }).setOrigin(0.5,0);
         this.createTowerLegend();
-        this.inGameUI = [summonBtnBg, this.summonBtn, this.summonText, this.manaText, this.scoreText, this.hpText, this.bossTimerText, this.ultimateBtnBg, this.ultimateCooldownIndicator, this.ultimateBtn, this.ultimateText, this.towerLegendGroup];
+        this.inGameUI = [summonBtnBg, this.summonBtn, this.summonText, this.manaText, this.scoreText, this.hpText, this.waveText, this.bossTimerText, this.ultimateBtnBg, this.ultimateCooldownIndicator, this.ultimateBtn, this.ultimateText, this.towerLegendGroup];
         
-        // --- สร้าง UI ตอนจบเกม ---
         this.createGameOverCta();
 
-        // --- ✅ จุดที่แก้ไข ---
-        // 1. ย้าย HTML และ CSS ของฟอร์มมาเก็บในตัวแปร string ตรงนี้เลย
         const formHTML = `
             <style>
                 #score-form-container-ingame {
@@ -593,7 +1052,6 @@ class UIScene extends Phaser.Scene {
             </div>
         `;
 
-        // 2. ใช้ createFromHTML เพื่อสร้างฟอร์มจาก string ด้านบน (ชัวร์กว่าเยอะ)
         this.formElement = this.add.dom(WIDTH / 2, HEIGHT / 2 + 50).createFromHTML(formHTML);
         this.formElement.setVisible(false);
         this.formElement.setDepth(6000);
@@ -632,14 +1090,12 @@ class UIScene extends Phaser.Scene {
         });
     }
 
-    // --- ฟังก์ชัน `showGameOver` (ตอนนี้จะทำงานถูกต้องแล้ว) ---
     showGameOver(score){
         this.gameScene.freezeGame();
         this.inGameUI.forEach(ui => { if (ui) ui.setVisible(false); });
         this.gameOverGroup.setVisible(true);
         this.formElement.setVisible(true);
 
-        // ตอนนี้ `this.formElement` มีอยู่จริงแน่นอน `getChildByID` จะทำงานได้
         const finalScoreEl = this.formElement.getChildByID('final-score');
         finalScoreEl.innerText = score;
 
@@ -667,13 +1123,15 @@ class UIScene extends Phaser.Scene {
         this.manaText.setText(`Mana: ${Math.floor(this.gameScene.mana)}`);
         this.hpText.setText(`HP: ${this.gameScene.playerHP}`);
         this.scoreText.setText(`Score: ${this.gameScene.score}`);
+        this.waveText.setText(`Wave: ${this.gameScene.wave}`);
+
         if (this.gameScene.bossSpawned) {
-            this.bossTimerText.setText('!! BOSS INCOMING !!').setColor('#ff4444');
+            this.bossTimerText.setY(120).setText('!! BOSS INCOMING !!').setColor('#ff4444');
         } else {
             const totalSeconds = this.gameScene.timeUntilBoss;
             const minutes = String(Math.floor(totalSeconds / 60)).padStart(2, '0');
             const seconds = String(totalSeconds % 60).padStart(2, '0');
-            this.bossTimerText.setText(`Boss In: ${minutes}:${seconds}`).setColor('#ffffff');
+            this.bossTimerText.setY(30).setText(`Boss In: ${minutes}:${seconds}`).setColor('#ffffff');
         }
         const cost = this.gameScene.getCurrentSummonCost();
         this.summonText.setText(`SUMMON (${cost})`);
