@@ -1344,10 +1344,10 @@ class UIScene extends Phaser.Scene {
         this.createTowerLegend();
         this.inGameUI = [summonBtnBg, this.summonBtn, this.summonText, this.manaText, this.scoreText, this.hpText, this.waveText, this.bossTimerText, this.ultimateBtnBg, this.ultimateCooldownIndicator, this.ultimateBtn, this.ultimateText, this.towerLegendGroup];
         
-        // // --- FPS COUNTER (DEBUG) --- //
-        // this.fpsText = this.add.text(30, 130, 'FPS: 0', { ...this.fontStyle, fontSize: '24px', color: '#00ff00' }).setOrigin(0,0);
-        // this.inGameUI.push(this.fpsText); // ตอนนี้ this.inGameUI มีอยู่จริงแล้ว
-        // // --- END FPS COUNTER --- //
+        // --- FPS COUNTER (DEBUG) --- //
+        this.fpsText = this.add.text(30, 130, 'FPS: 0', { ...this.fontStyle, fontSize: '24px', color: '#00ff00' }).setOrigin(0,0);
+        this.inGameUI.push(this.fpsText); // ตอนนี้ this.inGameUI มีอยู่จริงแล้ว
+        // --- END FPS COUNTER --- //
 
         this.createGameOverCta();
 
@@ -1504,11 +1504,11 @@ class UIScene extends Phaser.Scene {
     update(time, delta){
         if(!this.gameScene.sys.isActive() || this.gameScene.isGameOver) return;
 
-        // // --- FPS COUNTER (DEBUG) --- //
-        // if (this.fpsText && this.fpsText.active) {
-        //     this.fpsText.setText(`FPS: ${Math.round(this.game.loop.actualFps)}`);
-        // }
-        // // --- END FPS COUNter --- //
+        // --- FPS COUNTER (DEBUG) --- //
+        if (this.fpsText && this.fpsText.active) {
+            this.fpsText.setText(`FPS: ${Math.round(this.game.loop.actualFps)}`);
+        }
+        // --- END FPS COUNter --- //
 
         this.manaText.setText(`Mana: ${Math.floor(this.gameScene.mana)}`);
         this.hpText.setText(`HP: ${this.gameScene.playerHP}`);

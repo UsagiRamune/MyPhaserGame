@@ -457,3 +457,12 @@ body.game-is-fullscreen main > section:not(#game-section) {
     color: #dc3545;
     font-weight: bold;
 }
+
+body.performance-pause .glow-text h1,
+body.performance-pause #game-container {
+    animation: none !important; 
+}
+
+body.performance-pause #game-container {
+    box-shadow: none !important;
+}

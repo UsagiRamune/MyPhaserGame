@@ -1,12 +1,31 @@
 document.addEventListener('DOMContentLoaded', () => {
 
   // =======================================================
-  // PRELOADER LOGIC
+  // PRELOADER LOGIC (UPGRADED)
   // =======================================================
-  // Simulate loading and then reveal the page
+  let isWindowLoaded = false;
+  let isMinTimePassed = false;
+  const MIN_LOAD_TIME = 2500; // 2.5 วินาที (ปรับได้ตามใจชอบ)
+
+  function tryHidePreloader() {
+      // ต้องโหลดเสร็จ และต้องผ่านเวลาขั้นต่ำด้วย ถึงจะยอมหายไป
+      if (isWindowLoaded && isMinTimePassed) {
+          document.body.classList.add('loaded');
+      }
+  }
+
+  // Event นี้จะทำงานเมื่อทุกอย่าง (รูปภาพ, stylesheet) โหลดเสร็จสมบูรณ์
+  window.onload = () => {
+      isWindowLoaded = true;
+      tryHidePreloader();
+  };
+
+  // ตั้งเวลาขั้นต่ำที่อยากให้ preloader โชว์
   setTimeout(() => {
-    document.body.classList.add('loaded');
-  }, 2800); // 2.8 seconds, slightly longer than the loading bar animation
+      isMinTimePassed = true;
+      tryHidePreloader();
+  }, MIN_LOAD_TIME);
+
 
   // =======================================================
   // CONFIG 
@@ -212,6 +231,10 @@ document.addEventListener('DOMContentLoaded', () => {
   document.addEventListener('fullscreenchange', () => {
     const isFullscreen = !!document.fullscreenElement;
     document.body.classList.toggle('game-is-fullscreen', isFullscreen); 
+    
+    // เพิ่ม/ลบ class เพื่อหยุด animation ของเว็บ
+    document.body.classList.toggle('performance-pause', isFullscreen);
+
     gameContainer.classList.toggle('fullscreen', isFullscreen);
     fullscreenBtn.classList.toggle('d-none', isFullscreen);
     exitFullscreenBtn.classList.toggle('d-none', !isFullscreen);
