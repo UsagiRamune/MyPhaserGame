@@ -11,7 +11,10 @@ document.addEventListener('DOMContentLoaded', () => {
   // =======================================================
   // CONFIG 
   // =======================================================
-  const API_ENDPOINT = "http://127.0.0.1:5001/realtimedata-phasergame/asia-southeast1/api";
+  const API_ENDPOINT = "https://asia-southeast1-realtimedata-phasergame.cloudfunctions.net/api";
+
+  // (local testing with emulator)
+  // const API_ENDPOINT = "http://127.0.0.1:5001/realtimedata-phasergame/asia-southeast1/api";
   
   // =======================================================
   // RECEIVE SCORE FROM GAME & CALL API
