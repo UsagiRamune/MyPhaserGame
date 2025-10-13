@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Merge Tower Defense - Playable Ad</title>
+
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body data-bs-theme="dark">
+
+    <div id="preloader">
+        <div class="loader-content-bottom-right">
+            <div class="circular-loader"></div>
+            <p class="loader-text">Initializing Defenses...</p>
+        </div>
+    </div>
+
+    <div id="main-content">
+        <nav class="navbar navbar-expand-lg navbar-dark bg-dark fixed-top">
+            <div class="container">
+                <a class="navbar-brand fw-bold" href="#">
+                    <img src="assets/game_logo.png" alt="Logo" width="30" height="30" class="d-inline-block align-text-top me-2">
+                    MERGE TD
+                </a>
+                <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+                    <span class="navbar-toggler-icon"></span>
+                </button>
+                <div class="collapse navbar-collapse" id="navbarNav">
+                    <ul class="navbar-nav ms-auto">
+                        <li class="nav-item">
+                            <a class="nav-link" href="#hero">Home</a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="#how-to-play">How to Play</a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="#game-section">Game</a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="#leaderboard">Leaderboard</a>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+        </nav>
+
+        <header class="text-center" id="hero">
+            <div class="hero-bg"></div>
+            <div class="hero-content">
+                <div class="glow-text">
+                    <h1 class="display-2 fw-bold">MERGE TD</h1>
+                </div>
+                <p class="lead text-body-secondary">Defend. Merge. Dominate.</p>
+            </div>
+        </header>
+
+        <main>
+            <section id="how-to-play" class="py-5">
+                <div class="container fade-in">
+                    <h2 class="text-center display-5 fw-bold mb-5">How to Play</h2>
+                    
+                    <div class="row g-4 mb-5">
+                        <div class="col-md-6 col-lg-3">
+                            <div class="card h-100 bg-dark-subtle text-center p-3">
+                                <i class="bi bi-plus-circle-dotted display-3 text-primary"></i>
+                                <div class="card-body">
+                                    <h5 class="card-title">SUMMON</h5>
+                                    <p class="card-text">กดปุ่ม "SUMMON" เพื่อสร้าง Tower แบบสุ่มลงในช่องว่าง ใช้ Mana ในการสร้าง</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-6 col-lg-3">
+                            <div class="card h-100 bg-dark-subtle text-center p-3">
+                                <i class="bi bi-arrow-down-up display-3 text-success"></i>
+                                <div class="card-body">
+                                    <h5 class="card-title">MERGE</h5>
+                                    <p class="card-text">ลาก Tower ที่มี "ชนิดและเลเวลเดียวกัน" มาทับกันเพื่ออัปเกรดให้เก่งขึ้น!</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-6 col-lg-3">
+                            <div class="card h-100 bg-dark-subtle text-center p-3">
+                                <i class="bi bi-stars display-3 text-warning"></i>
+                                <div class="card-body">
+                                    <h5 class="card-title">ULTIMATE</h5>
+                                    <p class="card-text">เมื่อถึงตาจน! กดใช้สกิล "ULTIMATE" เพื่อปล่อยพลังทำลายล้างใส่ศตรูทั้งหมดบนจอ</p>
+                                </div>
+                            </div>
+                        </div>
+                         <div class="col-md-6 col-lg-3">
+                            <div class="card h-100 bg-dark-subtle text-center p-3">
+                                 <i class="bi bi-shield-check display-3 text-danger"></i>
+                                <div class="card-body">
+                                    <h5 class="card-title">DEFEND</h5>
+                                    <p class="card-text">จัดการศัตรูทั้งหมดก่อนที่มันจะไปถึงฐานทัพของเรา ถ้า HP ของเราหมด = แพ้!</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <h3 class="text-center display-6 fw-bold mb-4 mt-5">Tower Types</h3>
+                    <div class="row g-4 justify-content-center">
+                        <div class="col-md-6 col-lg-4">
+                            <div class="card h-100 bg-dark-subtle p-3">
+                                <div class="card-body">
+                                    <h5 class="card-title text-warning">🔥 FIRE TOWER</h5>
+                                    <p class="card-text"><strong>ความสามารถ:</strong> สร้างความเสียหายและมีโอกาสติดสถานะ <span class="text-danger">Burn</span> (ลดเลือดศัตรูเรื่อยๆ)</p>
+                                    <p class="card-text"><strong>Lv.5 Skill:</strong> เรียก <span class="text-danger">Meteor</span> ตกใส่กลุ่มศัตรู สร้างความเสียหายเป็นวงกว้าง</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-6 col-lg-4">
+                            <div class="card h-100 bg-dark-subtle p-3">
+                                <div class="card-body">
+                                    <h5 class="card-title" style="color: #66ccff;">🧊 ICE TOWER</h5>
+                                    <p class="card-text"><strong>ความสามารถ:</strong> สร้างความเสียหายและมีโอกาสทำให้ศัตรู <span class="text-info">Slow</span> (เคลื่อนที่ช้าลง)</p>
+                                    <p class="card-text"><strong>Lv.5 Skill:</strong> <span class="text-info">แช่แข็ง</span> ศัตรูเป็นเวลาสั้นๆ เมื่อหมดเวลาจะระเบิดสร้างความเสียหายและสโลว์ศัตรูรอบๆ</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-6 col-lg-4">
+                            <div class="card h-100 bg-dark-subtle p-3">
+                                <div class="card-body">
+                                    <h5 class="card-title" style="color: #ffff66;">⚡ LIGHTNING TOWER</h5>
+                                    <p class="card-text"><strong>ความสามารถ:</strong> สร้างความเสียหายและมีโอกาสชิ่งไปโดนศัตรูตัวอื่นที่อยู่ใกล้เคียง</p>
+                                    <p class="card-text"><strong>Lv.5 Skill:</strong> ยิง <span class="text-warning">Chain Lightning</span> ที่รุนแรงขึ้น ชิ่งได้หลายเป้าหมายและทำให้ติดสตั๊นชั่วครู่</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-6 col-lg-4">
+                            <div class="card h-100 bg-dark-subtle p-3">
+                                <div class="card-body">
+                                    <h5 class="card-title" style="color: #8fce00;">☠️ POISON TOWER</h5>
+                                    <p class="card-text"><strong>ความสามารถ:</strong> สร้างความเสียหายและมีโอกาสติดสถานะ <span class="text-success">Poison</span> (ลดเลือดศัตรูอย่างรุนแรง)</p>
+                                    <p class="card-text"><strong>Lv.5 Skill:</strong> สร้าง <span class="text-success">บ่อพิษ</span> บนพื้น ศัตรูที่เดินผ่านจะได้รับความเสียหายต่อเนื่อง</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-6 col-lg-4">
+                            <div class="card h-100 bg-dark-subtle p-3">
+                                <div class="card-body">
+                                    <h5 class="card-title" style="color: #ffffff;">🏹 ARROW TOWER</h5>
+                                    <p class="card-text"><strong>ความสามารถ:</strong> มีโอกาสยิงติด <span class="text-light">Critical</span> สร้างความเสียหายรุนแรงขึ้น</p>
+                                    <p class="card-text"><strong>Lv.5 Skill:</strong> เข้าสู่สถานะ <span class="text-light">Rapid Fire</span> เพิ่มความเร็วในการโจมตีและโอกาสติดคริติคอลอย่างมหาศาลชั่วครู่</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-6 col-lg-4">
+                            <div class="card h-100 bg-dark-subtle p-3">
+                                <div class="card-body">
+                                    <h5 class="card-title" style="color: #9966ff;">🔮 MANA TOWER</h5>
+                                    <p class="card-text"><strong>ความสามารถ:</strong> ไม่โจมตี แต่เมื่อนำไปผสมกับป้อมอื่น จะได้รับโบนัสมานา</p>
+                                    <p class="card-text"><strong>Lv.5 Skill:</strong> <span class="text-info">สร้างมานา</span> ให้ผู้เล่นเรื่อยๆ ยิ่งเลเวลสูงยิ่งสร้างได้เยอะขึ้น</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="row mt-5">
+                        <div class="col-lg-6">
+                            <h3 class="text-center display-6 fw-bold mb-4">Enemy Types</h3>
+                            <div class="list-group">
+                                <div class="list-group-item list-group-item-action bg-dark-subtle flex-column align-items-start">
+                                    <div class="d-flex w-100 justify-content-between">
+                                        <h5 class="mb-1 text-danger">Normal Enemy</h5>
+                                    </div>
+                                    <p class="mb-1">ศัตรูพื้นฐาน มาเป็นกองทัพเพื่อทดสอบการป้องกันของคุณ</p>
+                                </div>
+                                <div class="list-group-item list-group-item-action bg-dark-subtle flex-column align-items-start">
+                                    <div class="d-flex w-100 justify-content-between">
+                                        <h5 class="mb-1" style="color: #ff8800;">Medium Enemy</h5>
+                                    </div>
+                                    <p class="mb-1">อึดกว่าปกติและให้มานาเยอะขึ้นเมื่อกำจัดได้</p>
+                                </div>
+                                <div class="list-group-item list-group-item-action bg-dark-subtle flex-column align-items-start">
+                                    <div class="d-flex w-100 justify-content-between">
+                                        <h5 class="mb-1 text-info">Speedy Enemy</h5>
+                                    </div>
+                                    <p class="mb-1">เลือดน้อย แต่เคลื่อนที่เร็วมาก! อย่าปล่อยให้มันหลุดไป!</p>
+                                </div>
+                                <div class="list-group-item list-group-item-action bg-dark-subtle flex-column align-items-start">
+                                    <div class="d-flex w-100 justify-content-between">
+                                        <h5 class="mb-1" style="color: #cc99ff;">Mana Enemy</h5>
+                                    </div>
+                                    <p class="mb-1">ตัวทำฟาร์ม! กำจัดมันเพื่อรับโบนัสมานาจำนวนมาก</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-lg-6 mt-4 mt-lg-0">
+                            <h3 class="text-center display-6 fw-bold mb-4">Boss Types</h3>
+                            <div class="list-group">
+                                <div class="list-group-item list-group-item-action bg-dark-subtle flex-column align-items-start">
+                                    <div class="d-flex w-100 justify-content-between">
+                                        <h5 class="mb-1 text-success">SPAWNER</h5>
+                                    </div>
+                                    <p class="mb-1">บอสสุดน่ารำคาญที่จะเรียก小兵 (ลูกน้อง) ออกมาเรื่อยๆ</p>
+                                </div>
+                                <div class="list-group-item list-group-item-action bg-dark-subtle flex-column align-items-start">
+                                    <div class="d-flex w-100 justify-content-between">
+                                        <h5 class="mb-1 text-warning">WARLOCK</h5>
+                                    </div>
+                                    <p class="mb-1">โคตรอันตราย! มันจะร่ายเวทย์ทำลาย Tower ของเรา ต้องรีบกำจัด!</p>
+                                </div>
+                                <div class="list-group-item list-group-item-action bg-dark-subtle flex-column align-items-start">
+                                    <div class="d-flex w-100 justify-content-between">
+                                        <h5 class="mb-1" style="color: #00aaff;">TELEPORTER</h5>
+                                    </div>
+                                    <p class="mb-1">เคลื่อนที่อย่างรวดเร็ว สามารถพุ่ง (Dash) ไปข้างหน้าได้อย่างรวดเร็ว</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <section id="game-section" class="py-5 text-center">
+                <div class="container fade-in">
+                    <h2 class="text-center display-5 fw-bold mb-5">Gameplay</h2>
+                    <div class="game-card-container mx-auto">
+                        <div id="game-container">
+                            <iframe data-src="./game/main.html" src="about:blank" frameborder="0" scrolling="no" allowfullscreen></iframe>
+                            <div id="play-overlay">
+                                <div class="play-button-content">
+                                    <i class="bi bi-play-circle-fill"></i>
+                                    <span>Click to Play</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="game-controls text-center mt-3">
+                            <button id="fullscreen-btn" class="btn btn-outline-primary"><i class="bi bi-arrows-fullscreen"></i> Full Screen</button>
+                            <button id="exit-fullscreen-btn" class="btn btn-outline-danger d-none"><i class="bi bi-fullscreen-exit"></i> Exit Full Screen</button>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <section id="leaderboard" class="py-5">
+                <div class="container fade-in">
+                    <h2 class="text-center display-5 fw-bold mb-5">Leaderboard</h2>
+                    <div class="table-responsive">
+                        <table class="table table-hover text-center">
+                            <thead>
+                                <tr>
+                                    <th scope="col" class="sortable" data-field="ranking">Rank<span class="sort-indicator"></span></th>
+                                    <th scope="col" class="sortable" data-field="name">Name<span class="sort-indicator"></span></th>
+                                    <th scope="col" class="sortable" data-field="score">Score<span class="sort-indicator"></span></th>
+                                    <th scope="col" class="sortable" data-field="playCount">Play<span class="sort-indicator"></span></th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                </tbody>
+                        </table>
+                         <p class="text-center text-body-secondary mt-3 d-none" id="leaderboard-placeholder">(Coming Soon...)</p>
+                    </div>
+                </div>
+            </section>
+            
+            <section id="bug-report" class="py-5">
+                <div class="container fade-in">
+                    <h2 class="text-center display-5 fw-bold mb-5">Report a Bug</h2>
+                    <div class="row justify-content-center">
+                        <div class="col-lg-8">
+                            <div class="card p-4" style="background-color: var(--card-bg);">
+                                <form id="bug-report-form">
+                                    <div class="mb-3">
+                                        <label for="bug-type" class="form-label">Type of Bug</label>
+                                        <select class="form-select" id="bug-type" required>
+                                            <option value="" disabled selected>Please select an option</option>
+                                            <option value="gameplay">Gameplay Issue (Towers, Enemies, etc.)</option>
+                                            <option value="visual">Visual Glitch / Graphics Error</option>
+                                            <option value="ui">UI / Button Issue</option>
+                                            <option value="leaderboard">Leaderboard / Score Issue</option>
+                                            <option value="other">Other</option>
+                                        </select>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label for="bug-description" class="form-label">Description</label>
+                                        <textarea class="form-control" id="bug-description" rows="5" placeholder="Please describe the bug in as much detail as possible..." required minlength="10"></textarea>
+                                    </div>
+                                    <button type="submit" class="btn btn-primary w-100">Submit Report</button>
+                                </form>
+                                <div id="report-feedback" class="mt-3 text-center"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </main>
+
+        <footer class="text-center mt-5 py-3 border-top">
+            <p class="text-body-secondary small">&copy; 2025 Nega Moof Studio</p>
+        </footer>
+    </div> <a href="#hero" id="back-to-top-btn" class="btn btn-primary btn-lg">
+        <i class="bi bi-arrow-up-circle-fill"></i>
+    </a>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <script src="https://www.gstatic.com/firebasejs/9.6.7/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.7/firebase-database-compat.js"></script>
+    
+    <script src="script.js"></script>
+</body>
+</html>

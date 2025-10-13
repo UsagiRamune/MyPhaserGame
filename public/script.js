@@ -1,9 +1,17 @@
 document.addEventListener('DOMContentLoaded', () => {
 
   // =======================================================
+  // PRELOADER LOGIC
+  // =======================================================
+  // Simulate loading and then reveal the page
+  setTimeout(() => {
+    document.body.classList.add('loaded');
+  }, 2800); // 2.8 seconds, slightly longer than the loading bar animation
+
+  // =======================================================
   // CONFIG 
   // =======================================================
-  const API_ENDPOINT = "https://asia-southeast1-realtimedata-phasergame.cloudfunctions.net/api";
+  const API_ENDPOINT = "http://127.0.0.1:5001/realtimedata-phasergame/asia-southeast1/api";
   
   // =======================================================
   // RECEIVE SCORE FROM GAME & CALL API
@@ -30,7 +38,8 @@ document.addEventListener('DOMContentLoaded', () => {
         const result = await response.json();
         console.log('✅ Score submitted via API!', result);
         
-        fetchAndRenderLeaderboard();
+        // Wait a bit before refetching to allow DB to update
+        setTimeout(fetchAndRenderLeaderboard, 500);
 
       } catch (error) {
         console.error('❌ Error submitting score via API:', error);
@@ -60,24 +69,25 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function updateLeaderboardUI(displayArray) {
     const leaderboardBody = document.querySelector("#leaderboard tbody");
-    const comingSoonText = document.querySelector("#leaderboard .text-body-secondary");
-    leaderboardBody.innerHTML = '';
+    const placeholderText = document.querySelector("#leaderboard-placeholder");
+    leaderboardBody.innerHTML = ''; // Clear previous entries
+    
     if (displayArray && displayArray.length > 0) {
-      if (comingSoonText) comingSoonText.style.display = 'none';
+      if (placeholderText) placeholderText.classList.add('d-none');
+      
       displayArray.forEach((player) => {
         const canonicalRank = rankMap[player._key];
-        const row = `
-          <tr>
-            <th scope="row">${canonicalRank}</th>
-            <td>${player.playerName || 'Anonymous'}</td>
-            <td>${player.score || 0}</td>
-            <td>${player.playCount || 0}</td>
-          </tr>
+        const row = document.createElement('tr');
+        row.innerHTML = `
+          <th scope="row">${canonicalRank}</th>
+          <td>${player.playerName || 'Anonymous'}</td>
+          <td>${player.score || 0}</td>
+          <td>${player.playCount || 0}</td>
         `;
-        leaderboardBody.innerHTML += row;
+        leaderboardBody.appendChild(row);
       });
     } else {
-      if (comingSoonText) comingSoonText.style.display = 'block';
+      if (placeholderText) placeholderText.classList.remove('d-none');
       leaderboardBody.innerHTML = `<tr><td colspan="4" class="text-center">- No scores yet -</td></tr>`;
     }
   }
@@ -175,12 +185,12 @@ document.addEventListener('DOMContentLoaded', () => {
   // UI LOGIC (fullscreen, overlay, fade-in)
   // =======================================================
   const fadeInElements = document.querySelectorAll('.fade-in');
-  const observer = new IntersectionObserver((entries) => {
+  const fadeInObserver = new IntersectionObserver((entries) => {
     entries.forEach(entry => {
       if (entry.isIntersecting) entry.target.classList.add('visible');
     });
   }, { root: null, rootMargin: '0px', threshold: 0.2 });
-  fadeInElements.forEach(el => observer.observe(el));
+  fadeInElements.forEach(el => fadeInObserver.observe(el));
 
   const gameContainer = document.getElementById('game-container');
   const fullscreenBtn = document.getElementById('fullscreen-btn');
@@ -212,4 +222,95 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     playOverlay.classList.add('hidden');
   }, { once: true });
+
+  // =======================================================
+  // SCROLL-BASED UI LOGIC
+  // =======================================================
+
+  // --- Navbar Active State on Scroll ---
+  const sections = document.querySelectorAll('section[id], header[id]');
+  const navLinks = document.querySelectorAll('.navbar-nav .nav-link');
+
+  const sectionObserver = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting) {
+        const id = entry.target.getAttribute('id');
+        navLinks.forEach(link => {
+          link.classList.remove('active');
+          if (link.getAttribute('href').substring(1) === id) {
+            link.classList.add('active');
+          }
+        });
+      }
+    });
+  }, { root: null, rootMargin: "-50% 0px -50% 0px", threshold: 0 });
+
+  sections.forEach(section => {
+    sectionObserver.observe(section);
+  });
+
+  // --- Back to Top Button ---
+  const backToTopBtn = document.getElementById('back-to-top-btn');
+
+  window.addEventListener('scroll', () => {
+    if (window.scrollY > window.innerHeight) {
+      backToTopBtn.classList.add('visible');
+    } else {
+      backToTopBtn.classList.remove('visible');
+    }
+  });
+
+  backToTopBtn.addEventListener('click', (e) => {
+    e.preventDefault();
+    document.getElementById('hero').scrollIntoView({
+        behavior: 'smooth'
+    });
+  });
+  
+  // =======================================================
+  // BUG REPORT FORM LOGIC
+  // =======================================================
+  const bugReportForm = document.getElementById('bug-report-form');
+  const reportFeedback = document.getElementById('report-feedback');
+
+  bugReportForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const submitButton = bugReportForm.querySelector('button[type="submit"]');
+      const bugType = document.getElementById('bug-type').value;
+      const description = document.getElementById('bug-description').value;
+
+      // Disable button to prevent multiple submissions
+      submitButton.disabled = true;
+      submitButton.textContent = 'Submitting...';
+      reportFeedback.textContent = '';
+      reportFeedback.className = '';
+
+      try {
+          const response = await fetch(`${API_ENDPOINT}/submit-bug`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ bugType, description }),
+          });
+
+          const result = await response.json();
+
+          if (!response.ok) {
+              throw new Error(result.error || 'Failed to submit report.');
+          }
+
+          reportFeedback.textContent = result.message;
+          reportFeedback.classList.add('success');
+          bugReportForm.reset(); // Clear the form
+
+      } catch (error) {
+          console.error('❌ Error submitting bug report:', error);
+          reportFeedback.textContent = `Error: ${error.message}`;
+          reportFeedback.classList.add('error');
+      } finally {
+          // Re-enable button
+          submitButton.disabled = false;
+          submitButton.textContent = 'Submit Report';
+      }
+  });
+
 });

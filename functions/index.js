@@ -6,8 +6,8 @@ const cors = require("cors");
 const allowedOrigins = [
     'https://realtimedata-phasergame.web.app',
     'https://kheeplayableads.netlify.app',
-    'http://127.0.0.1:5500', 
-    'http://localhost:5000'   
+    'http://127.0.0.1:5500',
+    'http://localhost:5000'
 ];
 
 
@@ -25,7 +25,6 @@ const app = express();
 // --- MIDDLEWARE ---
 app.use(cors({
   origin: function(origin, callback) {
-    // อนุญาตถ้าเป็นหนึ่งใน whitelist หรือถ้าไม่ได้ระบุ origin (เช่น postman)
     if (!origin || allowedOrigins.indexOf(origin) !== -1) {
       callback(null, true);
     } else {
@@ -104,6 +103,30 @@ app.get("/leaderboard", async (req, res) => {
     return res.status(500).send({error: "Internal Server Error."});
   }
 });
+
+// NEW: Bug Report Endpoint
+app.post("/submit-bug", async (req, res) => {
+  const { bugType, description } = req.body;
+
+  if (!bugType || !description || typeof description !== "string" || description.trim().length < 10) {
+    return res.status(400).send({ error: "Bad Input: Please provide a valid bug type and a description of at least 10 characters." });
+  }
+
+  try {
+    const bugReportsRef = db.ref("bug_reports");
+    await bugReportsRef.push({
+      type: bugType,
+      description: description.trim(),
+      timestamp: Date.now(),
+      status: "new", // default status
+    });
+    return res.status(201).send({ message: "Bug report submitted successfully. Thank you!" });
+  } catch (error) {
+    console.error("🔥 Error in /submit-bug:", error);
+    return res.status(500).send({ error: "Internal Server Error." });
+  }
+});
+
 
 console.log("✅ Function setup complete. Exporting 'api'...");
 

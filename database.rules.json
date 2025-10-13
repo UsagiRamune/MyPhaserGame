@@ -4,6 +4,10 @@
       ".read": "true",
       ".write": "false",
       ".indexOn": "score"
+    },
+    "bug_reports": {
+      ".read": "false",
+      ".write": "true"
     }
   }
 }
