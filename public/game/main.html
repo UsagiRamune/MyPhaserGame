@@ -180,6 +180,8 @@ class GameScene extends Phaser.Scene {
         const graphics = this.make.graphics({x: 0, y: 0, add: false});
         graphics.fillStyle(0xffffff); graphics.fillCircle(5, 5, 5);
         graphics.generateTexture('projectile_texture', 10, 10); graphics.destroy();
+        this.load.image('fire_zone', '../assets/fire_zone.png');
+        this.load.image('poison_pool', '../assets/poison_pool.png');
     }
     create(){
         this.playerHP = 10;
@@ -194,8 +196,6 @@ class GameScene extends Phaser.Scene {
         this.isGameOver = false;
         this.ultimateReady = true;
         this.lastUltimateTime = -ULTIMATE_COOLDOWN;
-        this.fireZones = [];
-        this.poisonPools = [];
         this.gameStarted = false;
 
         this.wave = 0;
@@ -211,11 +211,22 @@ class GameScene extends Phaser.Scene {
         this.setupGrid();
         this.setupPath();
         this.towers = [];
-        this.enemies = this.add.group();
+
+        // --- MODIFIED ---
+        // เปลี่ยน Group ธรรมดาให้เป็น Physics Group เพื่อใช้ overlap
+        this.enemies = this.physics.add.group();
+        this.fireZones = this.physics.add.group();
+        this.poisonPools = this.physics.add.group();
+        
         this.setupInputHandling();
         this.floatingTextPool = this.add.group({ classType: Phaser.GameObjects.Text, maxSize: 50, runChildUpdate: false });
         this.projectilePool = this.add.group({ defaultKey: 'projectile_texture', maxSize: 100, runChildUpdate: false });
         this.physics.pause();
+
+        // --- ADD THIS ---
+        // สร้างตัวจัดการการซ้อนทับ ให้ Phaser เช็คให้เราอัตโนมัติ
+        this.physics.add.overlap(this.enemies, this.fireZones, this.handleFireZoneDamage, null, this);
+        this.physics.add.overlap(this.enemies, this.poisonPools, this.handlePoisonPoolDamage, null, this);
 
         this.tutorial = new TutorialManager(this, this.scene.get('UIScene'));
         this.startGame();
@@ -223,6 +234,7 @@ class GameScene extends Phaser.Scene {
         this.input.keyboard.on('keydown', (event) => {
             const key = event.key.toUpperCase();
             
+            // Remove the gameStarted check - cheats should work anytime
             if (this.isGameOver) return;
             
             switch(key) {
@@ -582,6 +594,9 @@ class GameScene extends Phaser.Scene {
     update(time, delta){
         if (this.isGameOver || !this.gameStarted) return;
         this.tutorial.checkUltimate(this.time.now);
+
+        // --- OPTIMIZED ---
+        // ลูปนี้จะเหลือแค่การอัปเดตตำแหน่ง HP Text ซึ่งเบามาก
         this.enemies.getChildren().forEach(enemy => {
             if(enemy && enemy.active && !enemy.isDead && enemy.hpText && enemy.hpText.active) {
                 const yOffset = enemy.isBoss ? -70 : (enemy.isMedium ? -40 : -30);
@@ -591,35 +606,6 @@ class GameScene extends Phaser.Scene {
                 else if (hpPercent < 0.6) enemy.hpText.setColor('#ffaa33');
                 else enemy.hpText.setColor('#ffffff');
             }
-        });
-        const now = this.time.now;
-        this.fireZones.forEach(zone => {
-            if(!zone.visual.active) return;
-            this.enemies.getChildren().forEach(enemy => {
-                if (enemy && !enemy.isDead && Phaser.Math.Distance.Between(zone.x, zone.y, enemy.x, enemy.y) < zone.radius) {
-                    if (!enemy.lastFireTick) enemy.lastFireTick = 0;
-                    if (now - enemy.lastFireTick > 500) {
-                        enemy.lastFireTick = now; enemy.hp -= zone.damage;
-                        this.showFloatingText(enemy.x, enemy.y, Math.round(zone.damage), '#ff6600');
-                        if (enemy.hp <= 0) this.killEnemy(enemy);
-                    }
-                }
-            });
-        });
-
-        this.poisonPools.forEach(pool => {
-            if(!pool.visual.active) return;
-            this.enemies.getChildren().forEach(enemy => {
-                if (enemy && !enemy.isDead && Phaser.Math.Distance.Between(pool.x, pool.y, enemy.x, enemy.y) < pool.radius) {
-                    if (!enemy.lastPoisonPoolTick) enemy.lastPoisonPoolTick = 0;
-                    if (now - enemy.lastPoisonPoolTick > 500) {
-                        enemy.lastPoisonPoolTick = now;
-                        enemy.hp -= pool.damage;
-                        this.showFloatingText(enemy.x, enemy.y, Math.round(pool.damage), '#8fce00');
-                        if (enemy.hp <= 0) this.killEnemy(enemy);
-                    }
-                }
-            });
         });
     }
     onEnemyReachBase(enemy){
@@ -808,14 +794,19 @@ class GameScene extends Phaser.Scene {
     }
     updateArrowTowerBuffs() {
         const arrowTowers = this.towers.filter(t => t.type === 'arrow');
+
+        // รีเซ็ตสถานะบัฟของป้อมธนูทั้งหมดก่อน
         arrowTowers.forEach(t => {
-            this.updateTowerStats(t);
+            this.updateTowerStats(t); // รีเซ็ตค่า dmg/attackRate กลับเป็นค่าพื้นฐาน
             if (t.buffTween) {
                 t.buffTween.stop();
-                t.sprite.setAlpha(1.0);
+                t.buffTween = null;
             }
-            t.sprite.setStrokeStyle(3, 0x000000);
-            t.buffTween = null;
+            
+            // --- FIX: ใช้ setFillStyle แทน setTint ---
+            // เซ็ตสีกลับไปเป็นสีขาวปกติของป้อมธนู
+            t.sprite.setFillStyle(TOWER_CONFIG['arrow'].color); 
+            t.sprite.setStrokeStyle(3, 0x000000); // กลับเป็นเส้นขอบสีดำ
         });
 
         const checked = new Set();
@@ -843,7 +834,7 @@ class GameScene extends Phaser.Scene {
                     }
                 }
             }
-
+            
             if (cluster.length > 1) {
                 const totalLevel = cluster.reduce((sum, t) => sum + t.level, 0);
                 const damageBonus = 1 + (cluster.length - 1) * 0.15 + totalLevel * 0.05;
@@ -852,16 +843,10 @@ class GameScene extends Phaser.Scene {
                 for (const t of cluster) {
                     t.dmg = t.baseDmg * damageBonus;
                     t.attackRate = t.baseAttackRate * speedBonus;
-                    if (!t.buffTween) {
-                         t.sprite.setStrokeStyle(3, 0xffffff);
-                         t.buffTween = this.tweens.add({
-                            targets: t.sprite,
-                            alpha: 0.7,
-                            duration: 500,
-                            yoyo: true,
-                            repeat: -1
-                         });
-                    }
+                    
+                    // --- FIX: ใช้ setFillStyle แทน setTint ---
+                    t.sprite.setFillStyle(0xffff00); // เปลี่ยนสีป้อมเป็นสีเหลืองทอง
+                    t.sprite.setStrokeStyle(3, 0xffffff); // เปลี่ยนเส้นขอบเป็นสีขาวให้ดูเด่น
                 }
             }
         }
@@ -936,17 +921,32 @@ class GameScene extends Phaser.Scene {
     }
     updateTowerAttacks(){
         if(this.isGameOver)return;
-        const aliveEnemies=this.enemies.getChildren().filter(e=>e&&!e.isDead); if(aliveEnemies.length===0)return;
+        const aliveEnemies=this.enemies.getChildren().filter(e=>e&&!e.isDead); 
+        if(aliveEnemies.length===0)return;
         const now=this.time.now;
+
+        // --- OPTIMIZED ---
+        // 1. หาเป้าหมายที่ไปไกลที่สุดแค่ครั้งเดียว
+        let bestTarget = null, bestProgress = -1;
+        for (let enemy of aliveEnemies) {
+            if (enemy.progress > bestProgress) {
+                bestProgress = enemy.progress;
+                bestTarget = enemy;
+            }
+        }
+
+        if (!bestTarget) return; // ถ้าไม่มีเป้าหมายก็ไม่ต้องทำอะไรต่อ
+
+        // 2. ให้ Tower ทุกป้อมยิงเป้าหมายนั้น
         for(let tower of this.towers){
             if (tower.isRapidFire && now - tower.lastAttack < tower.attackRate / 3) continue;
             if(!tower.isRapidFire && now - tower.lastAttack < tower.attackRate) continue;
 
-            let bestTarget=null,bestProgress=-1;
-            for(let enemy of aliveEnemies){ if(enemy.progress>bestProgress){ bestProgress=enemy.progress; bestTarget=enemy; }}
-            if(bestTarget){ this.towerAttack(tower,bestTarget); tower.lastAttack=now; }
+            this.towerAttack(tower, bestTarget); 
+            tower.lastAttack=now; 
         }
     }
+
     towerAttack(tower,enemy){
         // Check for L5 special first
         if (tower.level >= 5) {
@@ -1018,11 +1018,24 @@ class GameScene extends Phaser.Scene {
                     if (enemyInRadius.hp <= 0) this.killEnemy(enemyInRadius);
                 }
             });
-            const fireZoneVisual = this.add.graphics({fillStyle: { color: 0xff6600, alpha: 0.3 }, lineStyle: { width: 3, color: 0xff0000, alpha: 0.7 } }).setDepth(5);
-            fireZoneVisual.fillCircle(explosionX, explosionY, ULTIMATE_EXPLOSION_RADIUS).strokeCircle(explosionX, explosionY, ULTIMATE_EXPLOSION_RADIUS);
-            const newZone = { x: explosionX, y: explosionY, radius: ULTIMATE_EXPLOSION_RADIUS, damage: currentFireDmg, visual: fireZoneVisual, endTime: this.time.now + ULTIMATE_FIRE_ZONE_DURATION };
-            this.fireZones.push(newZone);
-            this.tweens.add({ targets: fireZoneVisual, alpha: 0, duration: 500, delay: ULTIMATE_FIRE_ZONE_DURATION - 500, onComplete: () => { fireZoneVisual.destroy(); this.fireZones = this.fireZones.filter(z => z !== newZone); } });
+            
+            // --- MODIFIED ---
+            // ใช้ image จาก pool แทนการวาด graphics ใหม่
+            const fireZoneVisual = this.fireZones.get(explosionX, explosionY, 'fire_zone');
+            if (!fireZoneVisual) return;
+
+            fireZoneVisual.setActive(true).setVisible(true).setDepth(5);
+            fireZoneVisual.setAlpha(0.5);
+            // ปรับขนาด sprite ให้พอดีกับรัศมีที่กำหนด
+            fireZoneVisual.setScale(ULTIMATE_EXPLOSION_RADIUS * 2 / fireZoneVisual.width);
+            // เก็บค่า damage ไว้ในตัว object เลย
+            fireZoneVisual.damage = currentFireDmg;
+
+            // ตั้งเวลาปิด zone
+            this.time.delayedCall(ULTIMATE_FIRE_ZONE_DURATION, () => {
+                // killAndHide จะคืน object กลับเข้า pool ให้ใช้ใหม่ได้
+                this.fireZones.killAndHide(fireZoneVisual);
+            });
         });
         this.time.delayedCall(ULTIMATE_COOLDOWN, () => { this.ultimateReady = true; });
     }
@@ -1084,15 +1097,24 @@ class GameScene extends Phaser.Scene {
         const radius = 60;
         const duration = 5000 + (tower.level - 5) * 500;
         const damage = (tower.dmg * 0.5) * (1 + (tower.level - 5) * 0.2);
-        const visual = this.add.graphics({fillStyle: { color: 0x8fce00, alpha: 0.4 }}).setDepth(4);
-        visual.fillCircle(frontEnemy.x, frontEnemy.y, radius);
-        const newPool = { x: frontEnemy.x, y: frontEnemy.y, radius, damage, visual, endTime: this.time.now + duration };
-        this.poisonPools.push(newPool);
 
-        this.tweens.add({ targets: visual, alpha: 0, duration: 500, delay: duration - 500, onComplete: () => {
-            visual.destroy();
-            this.poisonPools = this.poisonPools.filter(p => p !== newPool);
-        }});
+        // --- MODIFIED ---
+        // ใช้ image จาก pool แทนการวาด graphics ใหม่
+        const visual = this.poisonPools.get(frontEnemy.x, frontEnemy.y, 'poison_pool');
+        if (!visual) return;
+
+        visual.setActive(true).setVisible(true).setDepth(4);
+        visual.setAlpha(0.6);
+        // ปรับขนาด sprite ให้พอดีกับรัศมี
+        visual.setScale(radius * 2 / visual.width);
+        // เก็บค่า damage ไว้ในตัว object
+        visual.damage = damage;
+
+        // ตั้งเวลาปิด pool
+        this.time.delayedCall(duration, () => {
+            this.poisonPools.killAndHide(visual);
+        });
+        
         return true;
     }
 
@@ -1322,6 +1344,11 @@ class UIScene extends Phaser.Scene {
         this.createTowerLegend();
         this.inGameUI = [summonBtnBg, this.summonBtn, this.summonText, this.manaText, this.scoreText, this.hpText, this.waveText, this.bossTimerText, this.ultimateBtnBg, this.ultimateCooldownIndicator, this.ultimateBtn, this.ultimateText, this.towerLegendGroup];
         
+        // // --- FPS COUNTER (DEBUG) --- //
+        // this.fpsText = this.add.text(30, 130, 'FPS: 0', { ...this.fontStyle, fontSize: '24px', color: '#00ff00' }).setOrigin(0,0);
+        // this.inGameUI.push(this.fpsText); // ตอนนี้ this.inGameUI มีอยู่จริงแล้ว
+        // // --- END FPS COUNTER --- //
+
         this.createGameOverCta();
 
         const formHTML = `
@@ -1476,6 +1503,13 @@ class UIScene extends Phaser.Scene {
 
     update(time, delta){
         if(!this.gameScene.sys.isActive() || this.gameScene.isGameOver) return;
+
+        // // --- FPS COUNTER (DEBUG) --- //
+        // if (this.fpsText && this.fpsText.active) {
+        //     this.fpsText.setText(`FPS: ${Math.round(this.game.loop.actualFps)}`);
+        // }
+        // // --- END FPS COUNter --- //
+
         this.manaText.setText(`Mana: ${Math.floor(this.gameScene.mana)}`);
         this.hpText.setText(`HP: ${this.gameScene.playerHP}`);
         this.scoreText.setText(`Score: ${this.gameScene.score}`);
