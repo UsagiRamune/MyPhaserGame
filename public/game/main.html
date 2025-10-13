@@ -803,7 +803,6 @@ class GameScene extends Phaser.Scene {
                 t.buffTween = null;
             }
             
-            // --- FIX: ใช้ setFillStyle แทน setTint ---
             // เซ็ตสีกลับไปเป็นสีขาวปกติของป้อมธนู
             t.sprite.setFillStyle(TOWER_CONFIG['arrow'].color); 
             t.sprite.setStrokeStyle(3, 0x000000); // กลับเป็นเส้นขอบสีดำ
@@ -844,8 +843,8 @@ class GameScene extends Phaser.Scene {
                     t.dmg = t.baseDmg * damageBonus;
                     t.attackRate = t.baseAttackRate * speedBonus;
                     
-                    // --- FIX: ใช้ setFillStyle แทน setTint ---
-                    t.sprite.setFillStyle(0xffff00); // เปลี่ยนสีป้อมเป็นสีเหลืองทอง
+                    // --- FIXED COLOR ---
+                    t.sprite.setFillStyle(0xc0c0c0); // เปลี่ยนสีป้อมเป็นสีเทาเงิน
                     t.sprite.setStrokeStyle(3, 0xffffff); // เปลี่ยนเส้นขอบเป็นสีขาวให้ดูเด่น
                 }
             }
