@@ -10,20 +10,20 @@ document.addEventListener('DOMContentLoaded', () => {
   const modalCountdownSpan = document.getElementById('modal-countdown');
   let countdownInterval;
 
-  // Simulate loading
+  const preloader = document.getElementById('preloader');
+
+  const showTheDamnModal = () => {
+    if (!sessionStorage.getItem('announcementShown')) {
+      announcementModal.show();
+      sessionStorage.setItem('announcementShown', 'true');
+    }
+  };
+
+  preloader.addEventListener('transitionend', showTheDamnModal, { once: true });
+
   setTimeout(() => {
-    document.body.classList.remove('loading'); // Allow scrolling
+    document.body.classList.remove('loading');
     document.body.classList.add('loaded');
-
-    // After page is visible, show the modal
-    setTimeout(() => {
-        // Only show modal if the user hasn't seen it before in this session
-        if (!sessionStorage.getItem('announcementShown')) {
-            announcementModal.show();
-            sessionStorage.setItem('announcementShown', 'true');
-        }
-    }, 500); // Wait half a second for the main content to fade in
-
   }, 2800);
 
   function startModalCountdown() {
@@ -132,7 +132,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
         displayImageContainer.innerHTML = `<i class="bi ${data.icon} display-1" style="color: ${data.color}; text-shadow: 0 0 20px ${data.color};"></i>`;
         
-        // Build the synergy box only if it exists for the tower
         const synergyBox = data.synergy ? `
             <div class="ability-box">
                 <p class="mb-0">${data.synergy}</p>
@@ -174,6 +173,28 @@ document.addEventListener('DOMContentLoaded', () => {
     }, 200);
   }
 
+  // --- START: โค้ดที่กูเพิ่มให้ ---
+  let autoScrollInterval;
+
+  const startAutoScroll = () => {
+    stopAutoScroll(); // เคลียร์ของเก่าทิ้งก่อน กันมันซ้อนกัน
+    autoScrollInterval = setInterval(() => {
+      // เช็คว่าเลื่อนไปจนสุดหรือยัง
+      if (selectionBar.scrollLeft >= selectionBar.scrollWidth - selectionBar.clientWidth) {
+        // ถ้าสุดแล้วให้กลับไปเริ่มใหม่
+        selectionBar.scrollTo({ left: 0, behavior: 'smooth' });
+      } else {
+        // ถ้ายังไม่สุด ก็เลื่อนไปทางขวาทีละนิด
+        selectionBar.scrollLeft += 1;
+      }
+    }, 25); // ความเร็วในการเลื่อน (ยิ่งน้อยยิ่งเร็ว)
+  };
+
+  const stopAutoScroll = () => {
+    clearInterval(autoScrollInterval);
+  };
+  // --- END: โค้ดที่กูเพิ่มให้ ---
+
   Object.keys(towerData).forEach(key => {
     const data = towerData[key];
     const iconContainer = document.createElement('div');
@@ -189,6 +210,7 @@ document.addEventListener('DOMContentLoaded', () => {
     iconContainer.appendChild(iconEl);
 
     iconContainer.addEventListener('click', () => {
+        stopAutoScroll(); // หยุดเลื่อนเมื่อ user คลิก
         updateTowerDisplay(key);
     });
 
@@ -196,6 +218,16 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   updateTowerDisplay('fire');
+  
+  // --- START: โค้ดที่กูเพิ่มให้ (ต่อ) ---
+  // เริ่มเลื่อนอัตโนมัติ
+  startAutoScroll();
+
+  // หยุดเมื่อเอาเมาส์ไปชี้
+  selectionBar.addEventListener('mouseenter', stopAutoScroll);
+  // เริ่มเลื่อนใหม่เมื่อเอาเมาส์ออก
+  selectionBar.addEventListener('mouseleave', startAutoScroll);
+  // --- END: โค้ดที่กูเพิ่มให้ (ต่อ) ---
 
 
   // =======================================================
@@ -496,4 +528,3 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
 });
-
