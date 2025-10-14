@@ -173,27 +173,20 @@ document.addEventListener('DOMContentLoaded', () => {
     }, 200);
   }
 
-  // --- START: โค้ดที่กูเพิ่มให้ ---
   let autoScrollInterval;
-
   const startAutoScroll = () => {
-    stopAutoScroll(); // เคลียร์ของเก่าทิ้งก่อน กันมันซ้อนกัน
+    stopAutoScroll(); 
     autoScrollInterval = setInterval(() => {
-      // เช็คว่าเลื่อนไปจนสุดหรือยัง
       if (selectionBar.scrollLeft >= selectionBar.scrollWidth - selectionBar.clientWidth) {
-        // ถ้าสุดแล้วให้กลับไปเริ่มใหม่
         selectionBar.scrollTo({ left: 0, behavior: 'smooth' });
       } else {
-        // ถ้ายังไม่สุด ก็เลื่อนไปทางขวาทีละนิด
         selectionBar.scrollLeft += 1;
       }
-    }, 25); // ความเร็วในการเลื่อน (ยิ่งน้อยยิ่งเร็ว)
+    }, 25);
   };
-
   const stopAutoScroll = () => {
     clearInterval(autoScrollInterval);
   };
-  // --- END: โค้ดที่กูเพิ่มให้ ---
 
   Object.keys(towerData).forEach(key => {
     const data = towerData[key];
@@ -210,24 +203,17 @@ document.addEventListener('DOMContentLoaded', () => {
     iconContainer.appendChild(iconEl);
 
     iconContainer.addEventListener('click', () => {
-        stopAutoScroll(); // หยุดเลื่อนเมื่อ user คลิก
+        stopAutoScroll(); 
         updateTowerDisplay(key);
     });
 
     selectionBar.appendChild(iconContainer);
   });
-
-  updateTowerDisplay('fire');
   
-  // --- START: โค้ดที่กูเพิ่มให้ (ต่อ) ---
-  // เริ่มเลื่อนอัตโนมัติ
+  updateTowerDisplay('fire');
   startAutoScroll();
-
-  // หยุดเมื่อเอาเมาส์ไปชี้
   selectionBar.addEventListener('mouseenter', stopAutoScroll);
-  // เริ่มเลื่อนใหม่เมื่อเอาเมาส์ออก
   selectionBar.addEventListener('mouseleave', startAutoScroll);
-  // --- END: โค้ดที่กูเพิ่มให้ (ต่อ) ---
 
 
   // =======================================================
@@ -238,30 +224,21 @@ document.addEventListener('DOMContentLoaded', () => {
     if (data && data.type === 'submitScore') {
       console.log('🎮 Score received from game:', data);
 
-      // --- ส่วนที่แก้ ---
-      // 1. ดึง ID Token มา
       const idToken = await getCurrentUserIdToken();
       if (!idToken) {
           console.error('❌ Could not get user ID token. Aborting score submission.');
           alert('Authentication error. Failed to submit score.');
           return;
       }
-      // ---------------
 
       try {
         const response = await fetch(`${API_ENDPOINT}/submit-score`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            // --- ส่วนที่แก้ ---
-            // 2. เพิ่ม Token เข้าไปใน Header
             'Authorization': `Bearer ${idToken}`
-            // ---------------
           },
-          // --- ส่วนที่แก้ ---
-          // 3. ส่งแค่ score ไปก็พอ ไม่ต้องส่ง name แล้ว
-          body: JSON.stringify({ name: data.name, score: data.score }), 
-          // ---------------
+          body: JSON.stringify({ name: data.name, score: data.score }),
         });
 
         if (!response.ok) {
@@ -272,8 +249,6 @@ document.addEventListener('DOMContentLoaded', () => {
         const result = await response.json();
         console.log('✅ Score submitted via API!', result);
         
-        setTimeout(fetchAndRenderLeaderboard, 500);
-
       } catch (error) {
         console.error('❌ Error submitting score via API:', error);
         alert('Failed to submit score. Please try again.');
@@ -389,30 +364,34 @@ document.addEventListener('DOMContentLoaded', () => {
   });
   
   // =======================================================
-  // FETCH LEADERBOARD FROM API & RENDER
+  // REAL-TIME LEADERBOARD LISTENER
   // =======================================================
-  async function fetchAndRenderLeaderboard() {
-    try {
-      const response = await fetch(`${API_ENDPOINT}/leaderboard`);
-      if (!response.ok) {
-        throw new Error('Failed to fetch leaderboard');
+  function listenToLeaderboard() {
+    console.log("🎧 Attaching real-time listener to leaderboard...");
+    const db = firebase.database();
+    const leaderboardRef = db.ref('leaderboard').orderByChild('score').limitToLast(100);
+
+    leaderboardRef.on('value', (snapshot) => {
+      console.log("🔥 Leaderboard data updated!");
+      if (snapshot.exists()) {
+        const scoresFromDB = [];
+        snapshot.forEach((childSnapshot) => {
+          scoresFromDB.push({ _key: childSnapshot.key, ...childSnapshot.val() });
+        });
+        allScores = scoresFromDB.reverse(); 
+        rankMap = buildCanonicalRankMap(allScores);
+        sortScoresForDisplay();
+        updateSortIndicators();
+      } else {
+        allScores = [];
+        updateLeaderboardUI([]);
       }
-      const scoresFromAPI = await response.json();
-
-      allScores = scoresFromAPI;
-      rankMap = buildCanonicalRankMap(allScores);
-      sortScoresForDisplay();
-      updateSortIndicators();
-
-    } catch (error) {
-      console.error("❌ Read failed via API: ", error);
+    }, (error) => {
+      console.error("❌ Real-time listener failed: ", error);
       const leaderboardBody = document.querySelector("#leaderboard tbody");
-      leaderboardBody.innerHTML = `<tr><td colspan="4" class="text-center text-danger">Error loading scores. Is the API running?</td></tr>`;
-    }
+      leaderboardBody.innerHTML = `<tr><td colspan="4" class="text-center text-danger">Error connecting to leaderboard.</td></tr>`;
+    });
   }
-
-  // --- STARTUP ---
-  fetchAndRenderLeaderboard();
 
   // =======================================================
   // UI LOGIC (fullscreen, overlay, fade-in)
@@ -445,6 +424,14 @@ document.addEventListener('DOMContentLoaded', () => {
     gameContainer.classList.toggle('fullscreen', isFullscreen);
     fullscreenBtn.classList.toggle('d-none', isFullscreen);
     exitFullscreenBtn.classList.toggle('d-none', !isFullscreen);
+
+    if (isFullscreen) {
+      console.log("🚀 Entering fullscreen. Stopping background animations.");
+      stopAutoScroll(); // หยุด auto-scroll ของ tower showcase
+    } else {
+      console.log("🌑 Exiting fullscreen. Resuming background animations.");
+      startAutoScroll(); // กลับมา auto-scroll เหมือนเดิม
+    }
   });
 
   const playOverlay = document.getElementById('play-overlay');
@@ -457,13 +444,10 @@ document.addEventListener('DOMContentLoaded', () => {
   }, { once: true });
 
   // =======================================================
-  // SCROLL-BASED UI LOGIC
+  // SCROLL-BASED UI & BUG REPORT LOGIC
   // =======================================================
-
-  // --- Navbar Active State on Scroll ---
   const sections = document.querySelectorAll('section[id], header[id]');
   const navLinks = document.querySelectorAll('.navbar-nav .nav-link');
-
   const sectionObserver = new IntersectionObserver((entries) => {
     entries.forEach(entry => {
       if (entry.isIntersecting) {
@@ -477,14 +461,9 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     });
   }, { root: null, rootMargin: "-50% 0px -50% 0px", threshold: 0 });
-
-  sections.forEach(section => {
-    sectionObserver.observe(section);
-  });
-
-  // --- Back to Top Button ---
+  sections.forEach(section => sectionObserver.observe(section));
+  
   const backToTopBtn = document.getElementById('back-to-top-btn');
-
   window.addEventListener('scroll', () => {
     if (window.scrollY > window.innerHeight) {
       backToTopBtn.classList.add('visible');
@@ -492,20 +471,13 @@ document.addEventListener('DOMContentLoaded', () => {
       backToTopBtn.classList.remove('visible');
     }
   });
-
   backToTopBtn.addEventListener('click', (e) => {
     e.preventDefault();
-    document.getElementById('hero').scrollIntoView({
-        behavior: 'smooth'
-    });
+    document.getElementById('hero').scrollIntoView({ behavior: 'smooth' });
   });
-  
-  // =======================================================
-  // BUG REPORT FORM LOGIC
-  // =======================================================
+
   const bugReportForm = document.getElementById('bug-report-form');
   const reportFeedback = document.getElementById('report-feedback');
-
   bugReportForm.addEventListener('submit', async (e) => {
       e.preventDefault();
       const submitButton = bugReportForm.querySelector('button[type="submit"]');
@@ -543,5 +515,8 @@ document.addEventListener('DOMContentLoaded', () => {
           submitButton.textContent = 'Submit Report';
       }
   });
+
+  // --- STARTUP ---
+  listenToLeaderboard();
 
 });
