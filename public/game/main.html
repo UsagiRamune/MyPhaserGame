@@ -46,7 +46,7 @@ const BOSS_CONFIG = {
     spawner: {
         name: 'SPAWNER',
         color: 0x00ff00,
-        summonInterval: 8000,
+        summonInterval: 3000,
         summonCount: 3,
         description: 'It summons 3 minions every 3 seconds!'
     },
@@ -60,7 +60,7 @@ const BOSS_CONFIG = {
         name: 'TELEPORTER',
         color: 0x00aaff,
         dashInterval: 15000,
-        dashDistance: 300,
+        dashDistance: 200,
         description: 'It dashes forward! Very fast!'
     }
 };
@@ -231,42 +231,50 @@ class GameScene extends Phaser.Scene {
         this.tutorial = new TutorialManager(this, this.scene.get('UIScene'));
         this.startGame();
 
-        // this.input.keyboard.on('keydown', (event) => {
-        //     const key = event.key.toUpperCase();
+        this.input.keyboard.on('keydown', (event) => {
+            const key = event.key.toUpperCase();
             
-        //     // Remove the gameStarted check - cheats should work anytime
-        //     if (this.isGameOver) return;
+            if (this.isGameOver) return;
             
-        //     switch(key) {
-        //         case 'M':
-        //             this.mana += 9999;
-        //             this.showFloatingText(WIDTH/2, HEIGHT/2, '+9999 MANA!', '#00ff00', -20, 1000, 32);
-        //             break;
-        //         case 'F': 
-        //             this.spawnCheatTower('fire', 10); 
-        //             break;
-        //         case 'I': 
-        //             this.spawnCheatTower('ice', 10); 
-        //             break;
-        //         case 'L': 
-        //             this.spawnCheatTower('lightning', 10); 
-        //             break;
-        //         case 'P': 
-        //             this.spawnCheatTower('poison', 10); 
-        //             break;
-        //         case 'A': 
-        //             this.spawnCheatTower('arrow', 10); 
-        //             break;
-        //         case 'N': 
-        //             this.spawnCheatTower('mana', 10); 
-        //             break;
-        //         case 'B': 
-        //             for(let i=0; i<15; i++) { 
-        //                 this.spawnTestEnemy(300); 
-        //             } 
-        //             break;
-        //     }
-        // });
+            switch(key) {
+                case 'M':
+                    this.mana += 9999;
+                    this.showFloatingText(WIDTH/2, HEIGHT/2, '+9999 MANA!', '#00ff00', -20, 1000, 32);
+                    break;
+                case 'F': 
+                    this.spawnCheatTower('fire', 10); 
+                    break;
+                case 'I': 
+                    this.spawnCheatTower('ice', 10); 
+                    break;
+                case 'L': 
+                    this.spawnCheatTower('lightning', 10); 
+                    break;
+                case 'P': 
+                    this.spawnCheatTower('poison', 10); 
+                    break;
+                case 'A': 
+                    this.spawnCheatTower('arrow', 10); 
+                    break;
+                case 'N': 
+                    this.spawnCheatTower('mana', 10); 
+                    break;
+                case 'B': 
+                    for(let i=0; i<15; i++) { 
+                        this.spawnTestEnemy(300); 
+                    } 
+                    break;
+                case '1':
+                    this.spawnBoss('spawner');
+                    break;
+                case '2':
+                    this.spawnBoss('warlock');
+                    break;
+                case '3':
+                    this.spawnBoss('teleporter');
+                    break;
+            }
+        });
     }
     startGame() {
         this.physics.resume();
@@ -457,61 +465,82 @@ class GameScene extends Phaser.Scene {
 
     bossDash() {
         if (!this.boss || this.boss.isDead || this.boss.isDashing) return;
-        
+
         this.boss.isDashing = true;
         
-        // Get next path point based on current segment
-        let nextSegment = this.boss.pathSegment + 1;
-        if (nextSegment >= this.pathPoints.length - 1) {
-            nextSegment = this.pathPoints.length - 1;
-        }
-        
-        const nextPoint = this.pathPoints[nextSegment];
-        const dashX = nextPoint.x;
-        const dashY = nextPoint.y;
-        
-        this.showFloatingText(this.boss.x, this.boss.y, '⚡ DASH!', '#00aaff', -40, 800, 24);
-        
         // Kill existing movement tweens
-        this.tweens.getTweensOf(this.boss).forEach(t => {
-            if (t.isPlaying() && (t.data.some(d => d.key === 'x') || t.data.some(d => d.key === 'y'))) {
-                t.stop();
-            }
-        });
+        this.tweens.getTweensOf(this.boss).forEach(t => t.stop());
+
+        const currentPos = new Phaser.Math.Vector2(this.boss.x, this.boss.y);
+        const segmentIndex = this.boss.pathSegment;
+
+        if (segmentIndex >= this.pathPoints.length - 1) {
+            this.boss.isDashing = false;
+            return; // Already at the end, can't dash
+        }
+
+        const nextPoint = new Phaser.Math.Vector2(this.pathPoints[segmentIndex + 1]);
+        const direction = nextPoint.clone().subtract(currentPos).normalize();
+        const dashDistance = BOSS_CONFIG.teleporter.dashDistance;
         
-        // Dash forward
+        let destination = currentPos.clone().add(direction.scale(dashDistance));
+        const distanceToEndOfSegment = Phaser.Math.Distance.Between(currentPos.x, currentPos.y, nextPoint.x, nextPoint.y);
+
+        let reachedEndOfSegment = false;
+        if (dashDistance >= distanceToEndOfSegment) {
+            destination = nextPoint;
+            reachedEndOfSegment = true;
+        }
+
+        this.showFloatingText(this.boss.x, this.boss.y, '⚡ DASH!', '#00aaff', -40, 800, 24);
+
         this.tweens.add({
             targets: this.boss,
-            x: dashX,
-            y: dashY,
-            duration: 500,
-            ease: 'Quad.easeInOut',
+            x: destination.x,
+            y: destination.y,
+            duration: 250, // Fast dash
+            ease: 'Quad.easeOut',
             onComplete: () => {
                 if (!this.boss || this.boss.isDead) return;
+
+                const distanceTraveled = Phaser.Math.Distance.Between(currentPos.x, currentPos.y, this.boss.x, this.boss.y);
+                this.boss.progress += distanceTraveled / this.totalPathLength;
+
+                if (reachedEndOfSegment) {
+                    this.boss.pathSegment++;
+                    if (this.boss.pathSegment >= this.pathPoints.length - 1) {
+                        this.onEnemyReachBase(this.boss);
+                    } else {
+                        this.moveEnemyToNextSegment(this.boss);
+                    }
+                } else {
+                    this.moveEnemyToNextSegment(this.boss);
+                }
+                
                 this.boss.isDashing = false;
-                // Continue path movement
-                this.boss.pathSegment = nextSegment;
-                this.moveEnemyToNextSegment(this.boss);
             }
         });
     }
 
-    spawnBoss() {
+
+    spawnBoss(bossType = null) {
+        if (this.boss) return; // Prevent multiple bosses
+
         this.bossSpawned = true;
         this.enemyScalingTimer.paused = true;
         
-        // Randomly select a boss type
-        const bossType = randChoice(BOSS_TYPES);
+        const selectedBossType = bossType && BOSS_TYPES.includes(bossType) ? bossType : randChoice(BOSS_TYPES);
+        
         const startPoint = this.pathPoints[0];
         
-        const boss = this.add.rectangle(startPoint.x, startPoint.y, 80, 90, BOSS_CONFIG[bossType].color).setOrigin(0.5).setStrokeStyle(4, 0xffffff);
+        const boss = this.add.rectangle(startPoint.x, startPoint.y, 80, 90, BOSS_CONFIG[selectedBossType].color).setOrigin(0.5).setStrokeStyle(4, 0xffffff);
         boss.hp = BOSS_BASE_HP * (1 + this.loop * 0.5);
         boss.maxHp = boss.hp;
         boss.speed = ENEMY_BASE_SPEED * 0.4;
         boss.isDead = false;
         boss.progress = 0;
         boss.isBoss = true;
-        boss.bossType = bossType;
+        boss.bossType = selectedBossType;
         boss.originalFillColor = boss.fillColor;
         
         boss.hpText = this.add.text(boss.x, boss.y - 60, `${Math.round(boss.hp)}`, { 
@@ -519,19 +548,18 @@ class GameScene extends Phaser.Scene {
             stroke: '#000', strokeThickness: 5, fontFamily: "'Poppins', Arial, sans-serif" 
         }).setOrigin(0.5).setDepth(150);
         
-        // Add boss type label below name
-        boss.typeLabel = this.add.text(boss.x, boss.y, BOSS_CONFIG[bossType].name, { 
-            fontSize: '14px', color: BOSS_CONFIG[bossType].color, fontStyle: 'bold',
+        boss.typeLabel = this.add.text(boss.x, boss.y, BOSS_CONFIG[selectedBossType].name, { 
+            fontSize: '14px', color: BOSS_CONFIG[selectedBossType].color, fontStyle: 'bold',
             stroke: '#000', strokeThickness: 3, fontFamily: "'Poppins', Arial, sans-serif" 
         }).setOrigin(0.5).setDepth(150);
         
-        // Initialize boss-specific timers - set to negative so ability triggers after 1 sec delay
-        if (bossType === 'spawner') {
-            boss.lastSummonTime = -2500; // Will trigger 1 sec after spawn (3000ms - 2500ms offset)
-        } else if (bossType === 'warlock') {
-            boss.lastMeteorTime = -14000; // Will trigger 1 sec after spawn (15000ms - 14000ms offset)
-        } else if (bossType === 'teleporter') {
-            boss.lastDashTime = -14000; // Will trigger 1 sec after spawn (15000ms - 14000ms offset)
+        const now = this.time.now;
+        if (selectedBossType === 'spawner') {
+            boss.lastSummonTime = now - (BOSS_CONFIG.spawner.summonInterval - 1000);
+        } else if (selectedBossType === 'warlock') {
+            boss.lastMeteorTime = now - (BOSS_CONFIG.warlock.meteorInterval - 1000);
+        } else if (selectedBossType === 'teleporter') {
+            boss.lastDashTime = now - (BOSS_CONFIG.teleporter.dashInterval - 1000);
             boss.isDashing = false;
         }
         
@@ -539,15 +567,17 @@ class GameScene extends Phaser.Scene {
         this.moveEnemyAlongPath(boss);
         this.boss = boss;
         
-        // Announce boss type in UIScene
         const uiScene = this.scene.get('UIScene');
-        uiScene.showBossAnnouncement(BOSS_CONFIG[bossType].name, BOSS_CONFIG[bossType].description, BOSS_CONFIG[bossType].color);
+        uiScene.showBossAnnouncement(BOSS_CONFIG[selectedBossType].name, BOSS_CONFIG[selectedBossType].description, BOSS_CONFIG[selectedBossType].color);
+
+        this.timeUntilBoss = 0;
+        if (this.waveSpawnTimer) this.waveSpawnTimer.remove();
     }
+
 
     killEnemy(enemy){
         if(!enemy || enemy.isDead) return;
         
-        // Resume any paused tweens before destroying
         this.tweens.getTweensOf(enemy).forEach(t => {
             if (t.isPaused()) t.resume();
         });
@@ -595,8 +625,6 @@ class GameScene extends Phaser.Scene {
         if (this.isGameOver || !this.gameStarted) return;
         this.tutorial.checkUltimate(this.time.now);
 
-        // --- OPTIMIZED ---
-        // ลูปนี้จะเหลือแค่การอัปเดตตำแหน่ง HP Text ซึ่งเบามาก
         this.enemies.getChildren().forEach(enemy => {
             if(enemy && enemy.active && !enemy.isDead && enemy.hpText && enemy.hpText.active) {
                 const yOffset = enemy.isBoss ? -70 : (enemy.isMedium ? -40 : -30);
@@ -903,13 +931,24 @@ class GameScene extends Phaser.Scene {
     }
     moveEnemyToNextSegment(enemy){
         if(!enemy||enemy.isDead||enemy.pathSegment>=this.pathPoints.length-1)return;
-        const nextPoint=this.pathPoints[enemy.pathSegment+1]; const distance=this.segmentLengths[enemy.pathSegment];
-        const duration=(distance/enemy.speed)*1000; let cumulativeDistance=0;
+        
+        const nextPoint=this.pathPoints[enemy.pathSegment+1];
+        
+        // Calculate remaining distance in segment based on current position
+        const distance = Phaser.Math.Distance.Between(enemy.x, enemy.y, nextPoint.x, nextPoint.y);
+        
+        const duration=(distance/enemy.speed)*1000;
+        
+        let cumulativeDistance=0;
         for(let i=0;i<enemy.pathSegment;i++)cumulativeDistance+=this.segmentLengths[i];
+        
         this.tweens.add({ targets:enemy,x:nextPoint.x,y:nextPoint.y,duration:duration,ease:'Linear',
             onUpdate:(tween)=>{ if(!enemy||enemy.isDead)return;
-                const segmentProgress=tween.progress; const totalProgressAtSegmentStart=cumulativeDistance/this.totalPathLength;
-                const segmentWeight=distance/this.totalPathLength; enemy.progress=totalProgressAtSegmentStart+(segmentProgress*segmentWeight);
+                const currentDistanceInSegment = Phaser.Math.Distance.Between(enemy.x, enemy.y, this.pathPoints[enemy.pathSegment].x, this.pathPoints[enemy.pathSegment].y);
+                const totalProgressAtSegmentStart=cumulativeDistance/this.totalPathLength;
+                const segmentWeight=this.segmentLengths[enemy.pathSegment]/this.totalPathLength; 
+                enemy.progress=totalProgressAtSegmentStart + ( (currentDistanceInSegment / this.segmentLengths[enemy.pathSegment]) * segmentWeight);
+
             },
             onComplete:()=>{ if(!enemy||enemy.isDead)return;
                 enemy.pathSegment++;
@@ -918,6 +957,7 @@ class GameScene extends Phaser.Scene {
             }
         });
     }
+
     updateTowerAttacks(){
         if(this.isGameOver)return;
         const aliveEnemies=this.enemies.getChildren().filter(e=>e&&!e.isDead); 
