@@ -231,42 +231,42 @@ class GameScene extends Phaser.Scene {
         this.tutorial = new TutorialManager(this, this.scene.get('UIScene'));
         this.startGame();
 
-        this.input.keyboard.on('keydown', (event) => {
-            const key = event.key.toUpperCase();
+        // this.input.keyboard.on('keydown', (event) => {
+        //     const key = event.key.toUpperCase();
             
-            // Remove the gameStarted check - cheats should work anytime
-            if (this.isGameOver) return;
+        //     // Remove the gameStarted check - cheats should work anytime
+        //     if (this.isGameOver) return;
             
-            switch(key) {
-                case 'M':
-                    this.mana += 9999;
-                    this.showFloatingText(WIDTH/2, HEIGHT/2, '+9999 MANA!', '#00ff00', -20, 1000, 32);
-                    break;
-                case 'F': 
-                    this.spawnCheatTower('fire', 10); 
-                    break;
-                case 'I': 
-                    this.spawnCheatTower('ice', 10); 
-                    break;
-                case 'L': 
-                    this.spawnCheatTower('lightning', 10); 
-                    break;
-                case 'P': 
-                    this.spawnCheatTower('poison', 10); 
-                    break;
-                case 'A': 
-                    this.spawnCheatTower('arrow', 10); 
-                    break;
-                case 'N': 
-                    this.spawnCheatTower('mana', 10); 
-                    break;
-                case 'B': 
-                    for(let i=0; i<15; i++) { 
-                        this.spawnTestEnemy(300); 
-                    } 
-                    break;
-            }
-        });
+        //     switch(key) {
+        //         case 'M':
+        //             this.mana += 9999;
+        //             this.showFloatingText(WIDTH/2, HEIGHT/2, '+9999 MANA!', '#00ff00', -20, 1000, 32);
+        //             break;
+        //         case 'F': 
+        //             this.spawnCheatTower('fire', 10); 
+        //             break;
+        //         case 'I': 
+        //             this.spawnCheatTower('ice', 10); 
+        //             break;
+        //         case 'L': 
+        //             this.spawnCheatTower('lightning', 10); 
+        //             break;
+        //         case 'P': 
+        //             this.spawnCheatTower('poison', 10); 
+        //             break;
+        //         case 'A': 
+        //             this.spawnCheatTower('arrow', 10); 
+        //             break;
+        //         case 'N': 
+        //             this.spawnCheatTower('mana', 10); 
+        //             break;
+        //         case 'B': 
+        //             for(let i=0; i<15; i++) { 
+        //                 this.spawnTestEnemy(300); 
+        //             } 
+        //             break;
+        //     }
+        // });
     }
     startGame() {
         this.physics.resume();
