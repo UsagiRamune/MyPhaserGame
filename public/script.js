@@ -1,40 +1,203 @@
 document.addEventListener('DOMContentLoaded', () => {
 
   // =======================================================
-  // PRELOADER LOGIC (UPGRADED)
+  // PRELOADER & ANNOUNCEMENT LOGIC
   // =======================================================
-  let isWindowLoaded = false;
-  let isMinTimePassed = false;
-  const MIN_LOAD_TIME = 2500; // 2.5 วินาที (ปรับได้ตามใจชอบ)
+  document.body.classList.add('loading'); // Prevent scrolling
 
-  function tryHidePreloader() {
-      // ต้องโหลดเสร็จ และต้องผ่านเวลาขั้นต่ำด้วย ถึงจะยอมหายไป
-      if (isWindowLoaded && isMinTimePassed) {
-          document.body.classList.add('loaded');
-      }
-  }
+  const announcementModalEl = document.getElementById('announcementModal');
+  const announcementModal = new bootstrap.Modal(announcementModalEl);
+  const modalCountdownSpan = document.getElementById('modal-countdown');
+  let countdownInterval;
 
-  // Event นี้จะทำงานเมื่อทุกอย่าง (รูปภาพ, stylesheet) โหลดเสร็จสมบูรณ์
-  window.onload = () => {
-      isWindowLoaded = true;
-      tryHidePreloader();
-  };
-
-  // ตั้งเวลาขั้นต่ำที่อยากให้ preloader โชว์
+  // Simulate loading
   setTimeout(() => {
-      isMinTimePassed = true;
-      tryHidePreloader();
-  }, MIN_LOAD_TIME);
+    document.body.classList.remove('loading'); // Allow scrolling
+    document.body.classList.add('loaded');
+
+    // After page is visible, show the modal
+    setTimeout(() => {
+        // Only show modal if the user hasn't seen it before in this session
+        if (!sessionStorage.getItem('announcementShown')) {
+            announcementModal.show();
+            sessionStorage.setItem('announcementShown', 'true');
+        }
+    }, 500); // Wait half a second for the main content to fade in
+
+  }, 2800);
+
+  function startModalCountdown() {
+      let secondsLeft = 15;
+      modalCountdownSpan.textContent = `Closing in ${secondsLeft}s...`;
+
+      countdownInterval = setInterval(() => {
+          secondsLeft--;
+          if (secondsLeft > 0) {
+              modalCountdownSpan.textContent = `Closing in ${secondsLeft}s...`;
+          } else {
+              if (announcementModalEl.classList.contains('show')) {
+                announcementModal.hide();
+              }
+          }
+      }, 1000);
+  }
+  
+  announcementModalEl.addEventListener('shown.bs.modal', () => {
+    startModalCountdown();
+  });
+
+  announcementModalEl.addEventListener('hidden.bs.modal', () => {
+    clearInterval(countdownInterval);
+    document.body.focus(); 
+  });
 
 
   // =======================================================
   // CONFIG 
   // =======================================================
-  const API_ENDPOINT = "https://asia-southeast1-realtimedata-phasergame.cloudfunctions.net/api";
+  const API_ENDPOINT = (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1")
+    ? "http://127.0.0.1:5001/realtimedata-phasergame/asia-southeast1/api"
+    : "https://asia-southeast1-realtimedata-phasergame.cloudfunctions.net/api";
 
-  // (local testing with emulator)
-  // const API_ENDPOINT = "http://127.0.0.1:5001/realtimedata-phasergame/asia-southeast1/api";
   
+  // =======================================================
+  // TOWER SHOWCASE LOGIC
+  // =======================================================
+  const towerData = {
+    fire: {
+        name: "🔥 FIRE TOWER",
+        color: "#ff6a00",
+        stats: { damage: "15 (Base)", rate: "Medium", chance: "20% Burn" },
+        passive: "<strong>Passive Skill:</strong> โจมตีปกติมีโอกาสติดสถานะ <span class='text-danger'>Burn</span> (ลดเลือดศัตรูเรื่อยๆ)",
+        skill: "<strong>Lv.5 Skill:</strong> เรียก <span class='text-danger'>Meteor</span> ตกใส่กลุ่มศัตรู สร้างความเสียหายเป็นวงกว้าง",
+        icon: "bi-fire",
+    },
+    ice: {
+        name: "🧊 ICE TOWER",
+        color: "#66ccff",
+        stats: { damage: "8 (Base)", rate: "Medium", chance: "25% Slow" },
+        passive: "<strong>Passive Skill:</strong> โจมตีปกติมีโอกาสทำให้ศัตรู <span class='text-info'>Slow</span> (เคลื่อนที่ช้าลง)",
+        skill: "<strong>Lv.5 Skill:</strong> <span class='text-info'>แช่แข็ง</span>ศัตรู และเมื่อหมดเวลาจะระเบิดสร้างความเสียหาย",
+        icon: "bi-snow",
+    },
+    lightning: {
+        name: "⚡ LIGHTNING TOWER",
+        color: "#ffff66",
+        stats: { damage: "10 (Base)", rate: "Medium", chance: "25% Chain" },
+        passive: "<strong>Passive Skill:</strong> โจมตีปกติมีโอกาสชิ่งไปโดนศัตรูตัวอื่นที่อยู่ใกล้เคียง",
+        skill: "<strong>Lv.5 Skill:</strong> ยิง <span class='text-warning'>Chain Lightning</span> ที่รุนแรงขึ้น และทำให้ติดสตั๊นชั่วครู่",
+        icon: "bi-lightning-charge-fill",
+    },
+    poison: {
+        name: "☠️ POISON TOWER",
+        color: "#8fce00",
+        stats: { damage: "6 (Base)", rate: "Medium", chance: "30% Poison" },
+        passive: "<strong>Passive Skill:</strong> โจมตีปกติมีโอกาสติดสถานะ <span class='text-success'>Poison</span> (ลดเลือดศัตรูอย่างรุนแรง)",
+        skill: "<strong>Lv.5 Skill:</strong> สร้าง <span class='text-success'>บ่อพิษ</span> บนพื้น สร้างความเสียหายต่อเนื่อง",
+        icon: "bi-virus",
+    },
+    arrow: {
+        name: "🏹 ARROW TOWER",
+        color: "#ffffff",
+        stats: { damage: "12 (Base)", rate: "Medium", chance: "25% Crit" },
+        passive: "<strong>Passive Skill:</strong> โจมตีปกติมีโอกาสยิงติด <span class='text-light'>Critical</span> สร้างความเสียหายรุนแรงขึ้น",
+        synergy: "<strong>Synergy Bonus:</strong> วาง Arrow Tower ติดกันเพื่อเพิ่มพลังโจมตีและความเร็วในการยิงให้แก่กันและกัน!",
+        skill: "<strong>Lv.5 Skill:</strong> เข้าสู่สถานะ <span class='text-light'>Rapid Fire</span> เพิ่มความเร็วโจมตีและโอกาสติดคริ",
+        icon: "bi-bullseye",
+    },
+    mana: {
+        name: "🔮 MANA TOWER",
+        color: "#9966ff",
+        stats: { damage: "8 (Base)", rate: "Medium", chance: "0% Special" },
+        passive: "<strong>Passive Skill:</strong> โจมตีได้ แต่มีความสามารถหลักคือเมื่อนำไปผสมจะได้รับโบนัสมานา",
+        skill: "<strong>Lv.5 Skill:</strong> <span class='text-info'>สร้างมานา</span> ให้ผู้เล่นเรื่อยๆ ยิ่งเลเวลสูงยิ่งสร้างได้เยอะขึ้น",
+        icon: "bi-gem",
+    }
+  };
+
+  const showcaseContainer = document.getElementById('tower-showcase-section');
+  const displayImageContainer = showcaseContainer.querySelector('.tower-display-image-container');
+  const displayInfoContainer = showcaseContainer.querySelector('.tower-display-info');
+  const selectionBar = showcaseContainer.querySelector('.tower-selection-bar');
+
+  function updateTowerDisplay(towerKey) {
+    const data = towerData[towerKey];
+    if (!data) return;
+    
+    displayImageContainer.style.opacity = 0;
+    displayInfoContainer.style.opacity = 0;
+
+    setTimeout(() => {
+        document.documentElement.style.setProperty('--tower-glow-color', data.color);
+
+        displayImageContainer.innerHTML = `<i class="bi ${data.icon} display-1" style="color: ${data.color}; text-shadow: 0 0 20px ${data.color};"></i>`;
+        
+        // Build the synergy box only if it exists for the tower
+        const synergyBox = data.synergy ? `
+            <div class="ability-box">
+                <p class="mb-0">${data.synergy}</p>
+            </div>
+        ` : '';
+
+        displayInfoContainer.innerHTML = `
+            <h4 style="color: ${data.color};">${data.name}</h4>
+            <div class="tower-stats">
+                <div class="stat-item">
+                    <small>Base Damage</small>
+                    <strong>${data.stats.damage}</strong>
+                </div>
+                <div class="stat-item">
+                    <small>Attack Rate</small>
+                    <strong>${data.stats.rate}</strong>
+                </div>
+                <div class="stat-item">
+                    <small>Special</small>
+                    <strong>${data.stats.chance}</strong>
+                </div>
+            </div>
+            <div class="ability-box">
+                <p class="mb-0">${data.passive}</p>
+            </div>
+            ${synergyBox}
+            <div class="ability-box">
+                <p class="mb-0">${data.skill}</p>
+            </div>
+        `;
+
+        displayImageContainer.style.opacity = 1;
+        displayInfoContainer.style.opacity = 1;
+
+        document.querySelectorAll('.tower-select-icon').forEach(icon => {
+            icon.classList.remove('active');
+        });
+        document.querySelector(`.tower-select-icon[data-tower="${towerKey}"]`).classList.add('active');
+    }, 200);
+  }
+
+  Object.keys(towerData).forEach(key => {
+    const data = towerData[key];
+    const iconContainer = document.createElement('div');
+    iconContainer.className = 'tower-select-icon';
+    iconContainer.dataset.tower = key;
+    iconContainer.style.setProperty('--tower-glow-color', data.color);
+    
+    const iconEl = document.createElement('i');
+    iconEl.className = `bi ${data.icon}`;
+    iconEl.style.fontSize = '2rem';
+    iconEl.style.color = data.color;
+
+    iconContainer.appendChild(iconEl);
+
+    iconContainer.addEventListener('click', () => {
+        updateTowerDisplay(key);
+    });
+
+    selectionBar.appendChild(iconContainer);
+  });
+
+  updateTowerDisplay('fire');
+
+
   // =======================================================
   // RECEIVE SCORE FROM GAME & CALL API
   // =======================================================
@@ -60,7 +223,6 @@ document.addEventListener('DOMContentLoaded', () => {
         const result = await response.json();
         console.log('✅ Score submitted via API!', result);
         
-        // Wait a bit before refetching to allow DB to update
         setTimeout(fetchAndRenderLeaderboard, 500);
 
       } catch (error) {
@@ -75,8 +237,8 @@ document.addEventListener('DOMContentLoaded', () => {
   // =======================================================
   let allScores = [];
   let rankMap = {};
-  let sortField = 'score'; // Default sort field
-  let sortDirection = 'desc'; // Default sort direction
+  let sortField = 'score';
+  let sortDirection = 'desc';
 
   function buildCanonicalRankMap(list) {
     const canonical = [...list].sort((a, b) => {
@@ -92,7 +254,7 @@ document.addEventListener('DOMContentLoaded', () => {
   function updateLeaderboardUI(displayArray) {
     const leaderboardBody = document.querySelector("#leaderboard tbody");
     const placeholderText = document.querySelector("#leaderboard-placeholder");
-    leaderboardBody.innerHTML = ''; // Clear previous entries
+    leaderboardBody.innerHTML = '';
     
     if (displayArray && displayArray.length > 0) {
       if (placeholderText) placeholderText.classList.add('d-none');
@@ -196,7 +358,7 @@ document.addEventListener('DOMContentLoaded', () => {
     } catch (error) {
       console.error("❌ Read failed via API: ", error);
       const leaderboardBody = document.querySelector("#leaderboard tbody");
-      leaderboardBody.innerHTML = `<tr><td colspan="4" class="text-center text-danger">Error loading scores. Is the emulator running?</td></tr>`;
+      leaderboardBody.innerHTML = `<tr><td colspan="4" class="text-center text-danger">Error loading scores. Is the API running?</td></tr>`;
     }
   }
 
@@ -231,10 +393,6 @@ document.addEventListener('DOMContentLoaded', () => {
   document.addEventListener('fullscreenchange', () => {
     const isFullscreen = !!document.fullscreenElement;
     document.body.classList.toggle('game-is-fullscreen', isFullscreen); 
-    
-    // เพิ่ม/ลบ class เพื่อหยุด animation ของเว็บ
-    document.body.classList.toggle('performance-pause', isFullscreen);
-
     gameContainer.classList.toggle('fullscreen', isFullscreen);
     fullscreenBtn.classList.toggle('d-none', isFullscreen);
     exitFullscreenBtn.classList.toggle('d-none', !isFullscreen);
@@ -305,7 +463,6 @@ document.addEventListener('DOMContentLoaded', () => {
       const bugType = document.getElementById('bug-type').value;
       const description = document.getElementById('bug-description').value;
 
-      // Disable button to prevent multiple submissions
       submitButton.disabled = true;
       submitButton.textContent = 'Submitting...';
       reportFeedback.textContent = '';
@@ -326,17 +483,17 @@ document.addEventListener('DOMContentLoaded', () => {
 
           reportFeedback.textContent = result.message;
           reportFeedback.classList.add('success');
-          bugReportForm.reset(); // Clear the form
+          bugReportForm.reset();
 
       } catch (error) {
           console.error('❌ Error submitting bug report:', error);
           reportFeedback.textContent = `Error: ${error.message}`;
           reportFeedback.classList.add('error');
       } finally {
-          // Re-enable button
           submitButton.disabled = false;
           submitButton.textContent = 'Submit Report';
       }
   });
 
 });
+
