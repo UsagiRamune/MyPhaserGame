@@ -238,13 +238,30 @@ document.addEventListener('DOMContentLoaded', () => {
     if (data && data.type === 'submitScore') {
       console.log('🎮 Score received from game:', data);
 
+      // --- ส่วนที่แก้ ---
+      // 1. ดึง ID Token มา
+      const idToken = await getCurrentUserIdToken();
+      if (!idToken) {
+          console.error('❌ Could not get user ID token. Aborting score submission.');
+          alert('Authentication error. Failed to submit score.');
+          return;
+      }
+      // ---------------
+
       try {
         const response = await fetch(`${API_ENDPOINT}/submit-score`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
+            // --- ส่วนที่แก้ ---
+            // 2. เพิ่ม Token เข้าไปใน Header
+            'Authorization': `Bearer ${idToken}`
+            // ---------------
           },
-          body: JSON.stringify({ name: data.name, score: data.score }),
+          // --- ส่วนที่แก้ ---
+          // 3. ส่งแค่ score ไปก็พอ ไม่ต้องส่ง name แล้ว
+          body: JSON.stringify({ name: data.name, score: data.score }), 
+          // ---------------
         });
 
         if (!response.ok) {

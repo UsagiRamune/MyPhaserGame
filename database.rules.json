@@ -2,8 +2,11 @@
   "rules": {
     "leaderboard": {
       ".read": "true",
-      ".write": "false",
-      ".indexOn": "score"
+
+      "$uid": {
+        ".write": "auth != null && auth.uid === $uid",
+        ".validate": "newData.hasChildren(['playerName', 'score', 'playCount']) && newData.child('score').isNumber()"
+      }
     },
     "bug_reports": {
       ".read": "false",

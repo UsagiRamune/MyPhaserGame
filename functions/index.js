@@ -1,89 +1,53 @@
-const {https} = require("firebase-functions");
-const {initializeApp} = require("firebase-admin/app");
-const {getDatabase} = require("firebase-admin/database");
+const { https } = require("firebase-functions");
+const { initializeApp } = require("firebase-admin/app");
 const express = require("express");
 const cors = require("cors");
-const allowedOrigins = [
-    'https://realtimedata-phasergame.web.app',
-    'https://mergetd-by-bignigamedev.netlify.app',
-    'http://127.0.0.1:5500',
-    'http://localhost:5000'
-];
-
-
-console.log("🚀 Initializing Cloud Function (SDK v3+ style)...");
+const { authenticate } = require('./controller/middleware/authenticate'); // <-- เรียกใช้ "ตัวตรวจบัตร"
 
 // --- INITIALIZE ---
-try {
-  initializeApp();
-} catch (e) {
-  console.log("Admin already initialized.");
-}
-const db = getDatabase();
+initializeApp();
 const app = express();
+const db = require("firebase-admin/database").getDatabase();
 
-// --- MIDDLEWARE ---
-app.use(cors({
-  origin: function(origin, callback) {
-    if (!origin || allowedOrigins.indexOf(origin) !== -1) {
-      callback(null, true);
-    } else {
-      callback(new Error('Not allowed by CORS'));
-    }
-  },
-}));
+// --- APP-LEVEL MIDDLEWARE ---
+const allowedOrigins = [ /* ... */ ];
+app.use(cors({ origin: allowedOrigins }));
 app.use(express.json());
 
 // --- ROUTES ---
+app.post("/submit-score", authenticate, async (req, res) => {
+    // Logic การบันทึกคะแนนทั้งหมดมาอยู่ตรงนี้
+    // (เอามาจาก authController.js ในคำตอบที่แล้ว)
+    const { name, score } = req.body;
+    const { uid } = req.user;
 
-app.post("/submit-score", async (req, res) => {
-  const {name, score} = req.body;
-  if (
-    !name ||
-    typeof name !== "string" ||
-    name.trim().length < 1 ||
-    name.trim().length > 15 ||
-    score === undefined ||
-    typeof score !== "number" ||
-    score < 0
-  ) {
-    return res.status(400).send({error: "Bad Input: Invalid name or score."});
-  }
-  try {
-    const leaderboardRef = db.ref("leaderboard");
-    const safeName = name.trim();
-    const snapshot = await leaderboardRef
-        .orderByChild("playerName")
-        .equalTo(safeName)
-        .once("value");
-
-    if (snapshot.exists()) {
-      let userKey = null;
-      let oldData = null;
-      snapshot.forEach((child) => {
-        userKey = child.key;
-        oldData = child.val();
-      });
-      const newScore = Math.max(oldData.score || 0, score);
-      const newPlayCount = (oldData.playCount || 0) + 1;
-      await db.ref(`leaderboard/${userKey}`).update({
-        score: newScore,
-        playCount: newPlayCount,
-        updatedAt: Date.now(),
-      });
-    } else {
-      await leaderboardRef.push({
-        playerName: safeName,
-        score: score,
-        playCount: 1,
-        createdAt: Date.now(),
-      });
+    if (!name || typeof name !== "string" || name.trim().length < 1 || name.trim().length > 15 || score === undefined || typeof score !== "number" || score < 0) {
+        return res.status(400).send({ error: "Bad Input: Invalid name or score." });
     }
-    return res.status(201).send({message: `Score submitted for ${safeName}`});
-  } catch (error) {
-    console.error("🔥 Error in /submit-score:", error);
-    return res.status(500).send({error: "Internal Server Error."});
-  }
+    
+    try {
+        const userScoreRef = db.ref(`leaderboard/${uid}`);
+        const snapshot = await userScoreRef.once("value");
+        const safeName = name.trim();
+
+        if (snapshot.exists()) {
+            const oldData = snapshot.val();
+            await userScoreRef.update({
+                playerName: safeName,
+                score: Math.max(oldData.score || 0, score),
+                playCount: (oldData.playCount || 0) + 1,
+                updatedAt: Date.now(),
+            });
+        } else {
+            await userScoreRef.set({
+                playerName: safeName, score, playCount: 1, createdAt: Date.now(),
+            });
+        }
+        return res.status(201).send({ message: `Score submitted for ${safeName}` });
+    } catch (error) {
+        console.error("🔥 Error in submitScore:", error);
+        return res.status(500).send({ error: "Internal Server Error." });
+    }
 });
 
 app.get("/leaderboard", async (req, res) => {
