@@ -3,7 +3,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // =======================================================
   // PRELOADER & ANNOUNCEMENT LOGIC
   // =======================================================
-  document.body.classList.add('loading'); // Prevent scrolling
+  document.body.classList.add('loading'); 
 
   const announcementModalEl = document.getElementById('announcementModal');
   const announcementModal = new bootstrap.Modal(announcementModalEl);
@@ -223,14 +223,12 @@ document.addEventListener('DOMContentLoaded', () => {
     const data = event.data;
     if (data && data.type === 'submitScore') {
       console.log('🎮 Score received from game:', data);
-
       const idToken = await getCurrentUserIdToken();
       if (!idToken) {
           console.error('❌ Could not get user ID token. Aborting score submission.');
           alert('Authentication error. Failed to submit score.');
           return;
       }
-
       try {
         const response = await fetch(`${API_ENDPOINT}/submit-score`, {
           method: 'POST',
@@ -240,15 +238,12 @@ document.addEventListener('DOMContentLoaded', () => {
           },
           body: JSON.stringify({ name: data.name, score: data.score }),
         });
-
         if (!response.ok) {
           const errorData = await response.json();
           throw new Error(`API Error: ${response.status} - ${errorData.error || response.statusText}`);
         }
-
         const result = await response.json();
         console.log('✅ Score submitted via API!', result);
-        
       } catch (error) {
         console.error('❌ Error submitting score via API:', error);
         alert('Failed to submit score. Please try again.');
@@ -426,11 +421,13 @@ document.addEventListener('DOMContentLoaded', () => {
     exitFullscreenBtn.classList.toggle('d-none', !isFullscreen);
 
     if (isFullscreen) {
-      console.log("🚀 Entering fullscreen. Stopping background animations.");
-      stopAutoScroll(); // หยุด auto-scroll ของ tower showcase
+      console.log("🚀 Entering fullscreen. Optimizing performance...");
+      stopAutoScroll();
+      stopScrollListener();
     } else {
-      console.log("🌑 Exiting fullscreen. Resuming background animations.");
-      startAutoScroll(); // กลับมา auto-scroll เหมือนเดิม
+      console.log("🌑 Exiting fullscreen. Restoring UI features.");
+      startAutoScroll();
+      startScrollListener();
     }
   });
 
@@ -446,6 +443,35 @@ document.addEventListener('DOMContentLoaded', () => {
   // =======================================================
   // SCROLL-BASED UI & BUG REPORT LOGIC
   // =======================================================
+  const backToTopBtn = document.getElementById('back-to-top-btn');
+  
+  const handleScroll = () => {
+    if (window.scrollY > window.innerHeight) {
+      backToTopBtn.classList.add('visible');
+    } else {
+      backToTopBtn.classList.remove('visible');
+    }
+  };
+
+  let isScrollListenerActive = false;
+
+  function startScrollListener() {
+    if (!isScrollListenerActive) {
+      console.log('Attaching scroll listener.');
+      window.addEventListener('scroll', handleScroll);
+      isScrollListenerActive = true;
+    }
+  }
+
+  function stopScrollListener() {
+    if (isScrollListenerActive) {
+      console.log('Removing scroll listener for performance.');
+      window.removeEventListener('scroll', handleScroll);
+      isScrollListenerActive = false;
+      backToTopBtn.classList.remove('visible');
+    }
+  }
+
   const sections = document.querySelectorAll('section[id], header[id]');
   const navLinks = document.querySelectorAll('.navbar-nav .nav-link');
   const sectionObserver = new IntersectionObserver((entries) => {
@@ -463,14 +489,6 @@ document.addEventListener('DOMContentLoaded', () => {
   }, { root: null, rootMargin: "-50% 0px -50% 0px", threshold: 0 });
   sections.forEach(section => sectionObserver.observe(section));
   
-  const backToTopBtn = document.getElementById('back-to-top-btn');
-  window.addEventListener('scroll', () => {
-    if (window.scrollY > window.innerHeight) {
-      backToTopBtn.classList.add('visible');
-    } else {
-      backToTopBtn.classList.remove('visible');
-    }
-  });
   backToTopBtn.addEventListener('click', (e) => {
     e.preventDefault();
     document.getElementById('hero').scrollIntoView({ behavior: 'smooth' });
@@ -518,5 +536,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // --- STARTUP ---
   listenToLeaderboard();
+  startScrollListener();
 
 });

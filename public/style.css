@@ -23,12 +23,10 @@ body {
     padding-top: 56px;
 }
 
-/* --- NEW: Prevent scrolling during load --- */
 body.loading {
     overflow: hidden;
 }
 
-/* --- Preloader Styles --- */
 #preloader {
     position: fixed;
     top: 0;
@@ -84,8 +82,6 @@ body.loaded #main-content {
     opacity: 1;
 }
 
-
-/* --- Navbar --- */
 .navbar {
     transform: translateY(-100%);
     transition: transform 0.5s ease-out;
@@ -123,8 +119,6 @@ body.loaded .navbar {
     border-radius: 2px;
 }
 
-
-/* --- Hero Section --- */
 #hero {
     position: relative;
     height: calc(100vh - 56px);
@@ -167,8 +161,6 @@ body.loaded .navbar {
     }
 }
 
-
-/* --- Section Styles --- */
 main > section:nth-of-type(even) {
     background-color: var(--dark-bg-alt);
 }
@@ -180,8 +172,6 @@ h2.display-5, h3.display-6 {
     -webkit-text-fill-color: transparent;
 }
 
-
-/* --- How to Play Section --- */
 #how-to-play .card, #how-to-play .list-group-item {
     border-color: var(--border-color);
     transition: transform 0.3s, box-shadow 0.3s;
@@ -202,8 +192,6 @@ h2.display-5, h3.display-6 {
     background-color: var(--card-bg-alt) !important;
 }
 
-
-/* --- Tower Showcase Styles --- */
 .tower-showcase-container {
     background-color: var(--card-bg-alt);
     border: 1px solid var(--border-color);
@@ -329,8 +317,6 @@ h2.display-5, h3.display-6 {
     }
 }
 
-
-/* --- Gameplay Section --- */
 #game-section {
     background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='40' height='40' viewBox='0 0 40 40'%3E%3Cg fill-rule='evenodd'%3E%3Cg fill='%23161b22' fill-opacity='0.4'%3E%3Cpath d='M0 38.59l2.83-2.83 1.41 1.41L1.41 40H0v-1.41zM0 1.4l2.83 2.83 1.41-1.41L1.41 0H0v1.41zM38.59 40l-2.83-2.83 1.41-1.41L40 38.59V40h-1.41zM40 1.41l-2.83 2.83-1.41-1.41L38.59 0H40v1.41z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
 }
@@ -359,7 +345,6 @@ h2.display-5, h3.display-6 {
         box-shadow: 0 0 50px rgba(0, 123, 255, 0.5), 0 0 15px rgba(0, 123, 255, 0.4) inset;
     }
 }
-
 
 #game-container:hover {
     transform: scale(1.02);
@@ -411,7 +396,6 @@ h2.display-5, h3.display-6 {
     100% { transform: scale(1); }
 }
 
-
 #play-overlay:hover .play-button-content {
     transform: scale(1.1);
     animation: none;
@@ -450,8 +434,6 @@ body.game-is-fullscreen main > section:not(#game-section) {
     display: none;
 }
 
-
-/* --- Leaderboard --- */
 #leaderboard .table {
     background-color: var(--card-bg);
 }
@@ -502,8 +484,6 @@ body.game-is-fullscreen main > section:not(#game-section) {
 #leaderboard tbody tr:nth-child(2) th::before { content: '🥈 '; color: var(--silver); }
 #leaderboard tbody tr:nth-child(3) th::before { content: '🥉 '; color: var(--bronze); }
 
-
-/* --- Fade-in Animation --- */
 .fade-in {
     opacity: 0;
     transform: translateY(30px);
@@ -515,7 +495,6 @@ body.game-is-fullscreen main > section:not(#game-section) {
     transform: translateY(0);
 }
 
-/* Sortable header styles */
 .sortable {
     cursor: pointer;
     user-select: none;
@@ -528,7 +507,6 @@ body.game-is-fullscreen main > section:not(#game-section) {
     transition: opacity 0.2s ease;
 }
 
-/* --- Back to Top Button --- */
 #back-to-top-btn {
     position: fixed;
     bottom: 30px;
@@ -544,7 +522,6 @@ body.game-is-fullscreen main > section:not(#game-section) {
     opacity: 0;
     pointer-events: none;
     transition: opacity 0.3s ease-in-out, transform 0.3s ease-in-out;
-    transform: translateY(20px);
     box-shadow: 0 5px 15px rgba(0, 0, 0, 0.4);
 }
 
@@ -558,7 +535,6 @@ body.game-is-fullscreen main > section:not(#game-section) {
     transform: scale(1.1) translateY(-5px);
 }
 
-/* --- Bug Report Section --- */
 #bug-report .form-control, #bug-report .form-select {
     background-color: var(--dark-bg);
     border-color: var(--border-color);
@@ -586,9 +562,8 @@ body.game-is-fullscreen main > section:not(#game-section) {
     font-weight: bold;
 }
 
-/* --- Announcement Modal Styles --- */
 .modal {
-    z-index: 100000; /* MAKE SURE THIS IS HIGHER THAN PRELOADER'S Z-INDEX */
+    z-index: 100000;
 }
 
 .modal-content {
@@ -627,4 +602,43 @@ body.game-is-fullscreen main > section:not(#game-section) {
 @keyframes fadeInModal {
     from { opacity: 0; transform: scale(0.9); }
     to { opacity: 1; transform: scale(1); }
+}
+
+/* ==================================
+   PERFORMANCE BOOST FOR FULLSCREEN
+   ================================== */
+body.game-is-fullscreen .glow-text h1,
+body.game-is-fullscreen #game-container,
+body.game-is-fullscreen #leaderboard tbody tr {
+    animation: none !important;
+}
+
+body.game-is-fullscreen #game-container {
+    box-shadow: none !important;
+}
+
+body.game-is-fullscreen .navbar,
+body.game-is-fullscreen .navbar-nav .nav-link,
+body.game-is-fullscreen #how-to-play .card,
+body.game-is-fullscreen #how-to-play .list-group-item,
+body.game-is-fullscreen .tower-display-image-container, 
+body.game-is-fullscreen .tower-display-info,
+body.game-is-fullscreen .tower-select-icon,
+body.game-is-fullscreen #leaderboard tbody tr,
+body.game-is-fullscreen #back-to-top-btn {
+    transition: none !important;
+}
+
+body.game-is-fullscreen .navbar-nav .nav-link:hover,
+body.game-is-fullscreen #how-to-play .card:hover,
+body.game-is-fullscreen #how-to-play .list-group-item:hover,
+body.game-is-fullscreen .tower-select-icon:hover,
+body.game-is-fullscreen #back-to-top-btn:hover {
+    transform: none !important;
+    box-shadow: none !important;
+    opacity: 0.5; 
+}
+
+body.game-is-fullscreen #back-to-top-btn {
+    display: none !important;
 }
